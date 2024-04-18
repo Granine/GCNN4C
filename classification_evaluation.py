@@ -19,8 +19,29 @@ NUM_CLASSES = len(my_bidict)
 # And get the predicted label, which is a tensor of shape (batch_size,)
 # Begin of your code
 def get_label(model, model_input, device):
-    answer = model(model_input, device)
-    return answer
+    batch_size = model_input.shape[0]
+    all_predictions =  torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
+
+    for i in range(NUM_CLASSES):
+        # Convert label to tensor representation
+        class_label_string = [my_bidict.inverse[i]] * batch_size
+        class_label = label_to_index(class_label_string).to(device)
+
+        # Forward pass through the model to get raw outputs
+        raw_output = model(model_input, class_label=class_label)
+
+        # Convert raw logistics into probabilities or logits
+        # mean pooling over logistic parameters
+        all_predictions[i] = raw_output.mean(dim=[1, 2, 3])  # Averaging out the emissions over all pixels and filter channels
+        
+    # Compute probabilities using softmax
+    probabilities = F.softmax(all_predictions, dim=0)  # Calculate softmax across outputs for different classes
+    
+    # Find the class with the maximum probability
+    predicted_classes = torch.argmax(probabilities, dim=0)
+
+    return predicted_classes
+
 # End of your code
 
 def classifier(model, data_loader, device):
@@ -64,7 +85,8 @@ if __name__ == '__main__':
     #Write your code here
     #You should replace the random classifier with your trained model
     #Begin of your code
-    model = random_classifier(NUM_CLASSES)
+    model = PixelCNN(nr_resnet=1, nr_filters=40, input_channels=3, nr_logistic_mix=5)
+    model = model.to(device)
     #End of your code
     
     model = model.to(device)

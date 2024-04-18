@@ -7,7 +7,40 @@ from torch.nn.utils import weight_norm as wn
 import numpy as np
 import os
 from PIL import Image
+'''
+def class_label_to_onehot(class_label, num_classes):
+    labels = ['Class0', 'Class1', 'Class2', 'Class3']
 
+    # Creating the label to index mapping
+    label_to_index = {label: idx for idx, label in enumerate(labels)}
+
+    # Creating the one-hot encoded vector
+    onehot = np.zeros(num_classes)
+    onehot[label_to_index[class_label]] = 1
+
+    return onehot
+'''
+
+def label_to_index(class_labels):
+    """Convert class labels to indices using a predefined dictionary."""
+    label_dict = {'Class0': 0, 'Class1': 1, 'Class2': 2, 'Class3': 3}
+    indices = [label_dict[label] for label in class_labels if label in label_dict]
+
+    if len(indices) != len(class_labels):
+        raise ValueError("One or more labels are invalid.")
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    return torch.tensor(indices, dtype=torch.long, device=device)
+
+def index_to_label(indices):
+    """Convert indices to class labels using a predefined dictionary."""
+    label_dict = {0: 'Class0', 1: 'Class1', 2: 'Class2', 3: 'Class3'}
+    labels = [label_dict.get(index) for index in indices]
+
+    if None in labels:
+        raise ValueError("One or more indices are invalid.")
+
+    return labels
 
 def concat_elu(x):
     """ like concatenated ReLU (http://arxiv.org/abs/1603.05201), but then with ELU """
@@ -109,7 +142,13 @@ def to_one_hot(tensor, n, fill_with=1.):
     return Variable(one_hot)
 
 
+
 def sample_from_discretized_mix_logistic(l, nr_mix):
+    """ sample from discretized mixture of logistics
+    Args:
+        l: (B, nr_mix*3, H, W) tensor
+        nr_mix: scalar
+    """
     # Pytorch ordering
     l = l.permute(0, 2, 3, 1)
     ls = [int(y) for y in l.size()]
@@ -163,7 +202,6 @@ def down_shift(x, pad=None):
     pad = nn.ZeroPad2d((0, 0, 1, 0)) if pad is None else pad
     return pad(x)
 
-
 def right_shift(x, pad=None):
     # Pytorch ordering
     xs = [int(y) for y in x.size()]
@@ -174,15 +212,24 @@ def right_shift(x, pad=None):
     return pad(x)
 
 
-def sample(model, sample_batch_size, obs, sample_op):
+def sample(model, sample_batch_size, obs, sample_op, class_label:list=None):
+    """ sampling function
+    Args:
+        model: model to sample from
+        sample_batch_size: number of samples to generate
+        obs: tuple of dimensions for the data
+        sample_op: function to sample from the model output
+    """
     model.train(False)
     with torch.no_grad():
         data = torch.zeros(sample_batch_size, obs[0], obs[1], obs[2])
         data = data.to(next(model.parameters()).device)
+        # make class label match sample batch size
+        class_label = label_to_index(class_label)
         for i in range(obs[1]):
             for j in range(obs[2]):
                 data_v = data
-                out   = model(data_v, sample=True)
+                out   = model(data_v, sample=True, class_label=class_label)
                 out_sample = sample_op(out)
                 data[:, :, i, j] = out_sample.data[:, :, i, j]
     return data

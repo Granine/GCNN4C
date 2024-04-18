@@ -11,6 +11,8 @@ class nin(nn.Module):
         self.lin_a = wn(nn.Linear(dim_in, dim_out))
         self.dim_out = dim_out
 
+    """ a network in network layer (1x1 CONV)
+    """
     def forward(self, x):
         og_x = x
         # assumes pytorch ordering
