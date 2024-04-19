@@ -29,6 +29,9 @@ class CPEN455Dataset(Dataset):
         root_dir = os.path.join(root_dir, mode)
         self.root_dir = root_dir
         self.transform = transform
+        """self.samples have structure like this
+        is a list of tuples, each tuple is a pair of image path and its label
+        """
         self.samples = []  # List to store image paths along with domain and category
         # Walk through the directory structure
         csv_path = os.path.join(ROOT_DIR, mode + '.csv')

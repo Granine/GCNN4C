@@ -1,0 +1,101 @@
+
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+% \usepackage[paperheight=16cm, paperwidth=12cm,% Set the height and width of the paper
+% includehead,
+% nomarginpar,% We don't want any margin paragraphs
+% textwidth=10cm,% Set \textwidth to 10cm
+% headheight=10mm,% Set \headheight to 10mm
+% ]{geometry}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xspace}
+\usepackage{bm}
+\usepackage{xcolor}
+\usepackage[colorlinks,linkcolor=blue]{hyperref}
+\usepackage{graphicx}
+
+
+\makeatletter
+\DeclareRobustCommand\onedot{\futurelet\@let@token\@onedot}
+\def\@onedot{\ifx\@let@token.\else.\null\fi\xspace}
+\def\iid{\emph{i.i.d}\onedot} \def\IID{\emph{I.I.D}\onedot}
+\def\eg{\emph{e.g}\onedot} \def\Eg{\emph{E.g}\onedot}
+\def\ie{\emph{i.e}\onedot} \def\Ie{\emph{I.e}\onedot}
+\def\cf{\emph{c.f}\onedot} \def\Cf{\emph{C.f}\onedot}
+\def\etc{\emph{etc}\onedot} \def\vs{\emph{vs}\onedot}
+\def\wrt{w.r.t\onedot} \def\dof{d.o.f\onedot}
+\def\aka{\emph{a.k.a}\onedot}
+\def\etal{\emph{et al}\onedot}
+\makeatother
+
+\newcommand{\important}[1]{{\color{blue}{\bf\sf #1}}}
+
+\title{CPEN455 Final Project: PixelCNN++G}
+\author{Name: Guan Zheng Huang}
+\date{Submit: 2024 April 21}
+
+
+\begin{document}
+
+\pagestyle{fancy}
+\fancyhead{} % clear all header fields
+\fancyhead[L]{\textbf{UBC CPEN455 2023 Winter Term 2}}
+\fancyhead[R]{\textbf{Final Project: PixelCNN++G}}
+
+\maketitle
+\thispagestyle{fancy}
+\section{Model}
+
+\paragraph{Introduction}
+PixelCNN++G is a conditional generative model based on the PixelCNN architecture. For this project, we aim to implement the PixelCNN++G model with an additional classification layer, making it an image classification model. The model will be trained on the CPEN450 dataset to classify images into one of four classes.
+
+\paragraph{Model Description}
+PixelCNN++G Modification:
+
+- 
+- 
+
+Classification Layer:
+
+\paragraph{Rationale}
+Justify the choice of your model. Why is it suitable for the problem at hand? Reference any previous work or theories that your model is based upon, or discuss how it improves or differs from existing methods.
+
+\section{Experiments}
+
+\paragraph{Dataset}
+Describe the dataset\(s\) used in your experiments. Include information about the size, features, source, and any preprocessing steps taken.
+
+\paragraph{Experiment Setup}
+Outline how the experiments were conducted. Describe the configuration settings like hardware and software environment, splitting the dataset, or any data augmentation techniques used.
+
+\paragraph{Hyper-parameters}
+Detail the hyper-parameters used in the training of the model, and justify why these were chosen. Discuss any parameter tuning or optimization techniques employed.
+
+\paragraph{Results}
+Present the outcomes of your experiments. Use tables, charts, and graphs to visually summarize the findings. Discuss any metrics used to evaluate the model’s performance like accuracy, precision, recall, F1 score, etc.
+
+\section{Conclusion}
+
+\paragraph{Summary}
+Provide a brief summary of the key findings from your experiments and the implications of these results. Recap the primary goal of the paper and whether it was achieved.
+
+\paragraph{Future Work}
+Discuss potential improvements or next steps that could be taken to advance the project. This might include experimenting with different models, applying the solution to different datasets, or addressing limitations in the current approach.
+
+\paragraph{Impact}
+Reflect on the broader impact of your work. This might include practical applications, societal benefits, or how it contributes to the field of study.
+
+\section{Appendices or Supplemental Materials}
+
+- **Source Code:** Include all relevant code used in your experiments, ideally with comments to aid understanding. Packaging this neatly in a zip file along with the report is often appreciated.
+  
+- **Experiment Hyper-Parameters:** Provide a detailed list or table of all hyper-parameters used, including those not discussed within the main text of the report.
+
+- **Visualizations:** Include any additional graphical content that supports the conclusions drawn from your experiments. This might include generated images, detailed graphs, and charts that were too voluminous for the main sections.
+
+This structure not only organizes your content logically but also guides the reader smoothly through your thought process, from introduction to conclusion. Remember, clarity and conciseness are key, so focus on creating a paper that delivers substantial information in a straightforward manner.
+
+\end{document}
