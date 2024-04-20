@@ -17,6 +17,15 @@ class PixelCNNLayer_up(nn.Module):
                                             for _ in range(nr_resnet)])
 
     def forward(self, u, ul):
+        """ forward pass of PixelCNNLayer_up, it takes u and ul as input and apply the gated resnet
+
+        Args:
+            u (_type_): _description_
+            ul (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         u_list, ul_list = [], []
 
         for i in range(self.nr_resnet):
@@ -44,6 +53,7 @@ class PixelCNNLayer_down(nn.Module):
 
     def forward(self, u, ul, u_list, ul_list):
         for i in range(self.nr_resnet):
+            # bad practice, you should not be poping across class
             u  = self.u_stream[i](u, a=u_list.pop())
             ul = self.ul_stream[i](ul, a=torch.cat((u, ul_list.pop()), 1))
 
@@ -69,7 +79,7 @@ class PixelCNN(nn.Module):
 
         down_nr_resnet = [nr_resnet] + [nr_resnet + 1] * 2
 
-        self.class_embedding = nn.Embedding(num_embeddings=num_classes, embedding_dim=num_classes)
+        self.class_embedding = nn.Embedding(num_embeddings=num_classes, embedding_dim=embedding_dim)
 
         self.down_layers = nn.ModuleList([PixelCNNLayer_down(down_nr_resnet[i], nr_filters,
                                                 self.resnet_nonlinearity) for i in range(3)])
@@ -103,7 +113,18 @@ class PixelCNN(nn.Module):
 
 
     def forward(self, x, sample=False, class_label:torch.tensor=None):
+        # x have shape [batch, channels, height, width]
         # similar as done in the tf repo :
+        
+        # Get class embeddings
+        if class_label is not None:
+            class_embeddings = self.class_embedding(class_label)
+            x = torch.cat([x, class_embeddings.unsqueeze(0)], dim=1)
+        else :
+            # exception
+            raise Exception("Class label is not provided")
+        # x now have shape [batch, channels + class_embedding_dim, height, width]
+        
         if self.init_padding is not sample:
             xs = [int(y) for y in x.size()]
             padding = Variable(torch.ones(xs[0], 1, xs[2], xs[3]), requires_grad=False)
@@ -117,16 +138,6 @@ class PixelCNN(nn.Module):
 
         ###      UP PASS    ###
         x = x if sample else torch.cat((x, self.init_padding), 1)
-
-        # Get class embeddings
-        if class_label is not None:
-            class_embeddings = self.class_embedding(class_label)
-            class_embeddings = class_embeddings.view(x.size(0), -1, 1, 1)
-            class_embeddings = class_embeddings.expand(-1, -1, x.size(2), x.size(3))
-            x = x + class_embeddings  # Integrating class embedding
-        else :
-            # exception
-            raise Exception("Class label is not provided")
 
         u_list  = [self.u_init(x)]
         ul_list = [self.ul_init[0](x) + self.ul_init[1](x)]

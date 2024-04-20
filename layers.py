@@ -49,6 +49,14 @@ class down_shifted_conv2d(nn.Module):
             self.down_shift = lambda x : down_shift(x, pad=nn.ZeroPad2d((0, 0, 1, 0)))
 
     def forward(self, x):
+        """this class is a down shifted convolution layer, it takes an input x and applies a convolution operation on it
+
+        Args:
+            x (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         x = self.pad(x)
         x = self.conv(x)
         x = self.bn(x) if self.norm == 'batch_norm' else x
@@ -127,6 +135,8 @@ class gated_resnet(nn.Module):
         if skip_connection != 0 :
             self.nin_skip = nin(2 * skip_connection * num_filters, num_filters)
 
+        # we apply dropout after the first layer and before the last layer
+        # dropout chance is 0.5
         self.dropout = nn.Dropout2d(0.5)
         self.conv_out = conv_op(2 * num_filters, 2 * num_filters)
 

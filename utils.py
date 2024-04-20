@@ -194,6 +194,15 @@ def sample_from_discretized_mix_logistic(l, nr_mix):
 
 ''' utilities for shifting the image around, efficient alternative to masking convolutions '''
 def down_shift(x, pad=None):
+    """This function downshifts the image by one pixel. It pads the image with zeros at the top.
+
+    Args:
+        x (_type_): _description_
+        pad (_type_, optional): _description_. Defaults to None.
+
+    Returns:
+        _type_: _description_
+    """
     # Pytorch ordering
     xs = [int(y) for y in x.size()]
     # when downshifting, the last row is removed
@@ -203,6 +212,15 @@ def down_shift(x, pad=None):
     return pad(x)
 
 def right_shift(x, pad=None):
+    """ This function right shifts the image by one pixel. It pads the image with zeros on the left.
+
+    Args:
+        x (_type_): _description_
+        pad (_type_, optional): _description_. Defaults to None.
+
+    Returns:
+        _type_: _description_
+    """
     # Pytorch ordering
     xs = [int(y) for y in x.size()]
     # when righshifting, the last column is removed
