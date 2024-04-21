@@ -20,7 +20,8 @@ def my_sample(model, gen_data_dir, sample_batch_size = 25, obs = (3,32,32), samp
     for label in my_bidict:
         print(f"Label: {label}")
         #generate images for each label, each label has 25 images
-        sample_t = sample(model, sample_batch_size, obs, sample_op, class_label=[label]*sample_batch_size)
+        class_label = label_to_onehot_tensor([label]*sample_batch_size)
+        sample_t = sample(model, sample_batch_size, obs, sample_op, class_label=class_label)
         sample_t = rescaling_inv(sample_t)
         save_images(sample_t, os.path.join(gen_data_dir), label=label)
     pass
@@ -43,6 +44,7 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(model_path, map_location=device))
     model = model.eval()
     my_sample(model=model, gen_data_dir=gen_data_dir)
+    
     #End of your code
     paths = [gen_data_dir, ref_data_dir]
     print("#generated images: {:d}, #reference images: {:d}".format(

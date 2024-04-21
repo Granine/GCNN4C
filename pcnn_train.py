@@ -27,8 +27,9 @@ def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, m
         model_input, label_strings = item
         model_input = model_input.to(device)
         # label from list to tensor
-        label_indices = label_to_index(label_strings).to(device)
-        model_output = model(model_input, class_label=label_indices)
+        #label_indices = torch.nn.functional.one_hot(label_strings, num_classes=4).to(device)
+        label_one_hot = label_to_onehot_tensor(label_strings).to(device)
+        model_output = model(model_input, class_label=label_one_hot)
         loss = loss_op(model_input, model_output)
         loss_tracker.update(loss.item()/deno)
         if mode == 'training':
@@ -227,7 +228,8 @@ if __name__ == '__main__':
             # new torch
             all_samples = []
             for label in my_bidict.keys():
-                sample_t = sample(model, int(args.sample_batch_size/4), args.obs, sample_op, class_label=[label]*4)
+                label_one_hot = label_to_onehot_tensor([label]*int(args.sample_batch_size/4))
+                sample_t = sample(model, int(args.sample_batch_size/4), args.obs, sample_op, class_label=label_one_hot)
                 sample_t = rescaling_inv(sample_t)
                 all_samples.append(sample_t)
                 save_images(sample_t, args.sample_dir, label=label)

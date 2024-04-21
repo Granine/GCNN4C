@@ -120,6 +120,152 @@ class down_right_shifted_deconv2d(nn.Module):
         return x
 
 
+
+from torch import nn
+from torch.nn import functional as F
+from torch.nn import init
+class PolyakAveragedModel(nn.Module):
+    def __init__(self, input_dim, num_filters, use_ema=False, ema_decay=0.999):
+        super(PolyakAveragedModel, self).__init__()
+        self.use_ema = use_ema
+        self.hw = nn.Parameter(torch.empty(input_dim, 2 * num_filters)).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        init.normal_(self.hw, mean=0, std=0.05)  # Initialize weights
+
+        if self.use_ema:
+            self.ema_decay = ema_decay
+            self.ema_hw = torch.empty_like(self.hw).copy_(self.hw).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+
+    def update_ema(self):
+        with torch.no_grad():
+            self.ema_hw.mul_(self.ema_decay).add_(self.hw * (1 - self.ema_decay))
+
+    def forward(self, h):
+        hw = self.ema_hw if self.use_ema else self.hw
+        return torch.matmul(h, hw)
+
+class gated_resnet_plus(nn.Module):
+    def __init__(self, num_filters, conv_op, nonlinearity=F.elu, skip_connection=0, input_dim=4):
+        super(gated_resnet_plus, self).__init__()
+        self.skip_connection = skip_connection
+        self.nonlinearity = nonlinearity
+        self.conv_input = conv_op(2 * num_filters, num_filters)
+        self.conv_out = conv_op(2 * num_filters, 2 * num_filters)
+        self.dropout = nn.Dropout2d(0.5)
+        self.num_filters = num_filters
+        
+        sizes = {"u8":8, "d8":8, "u16":16, "d16":16, "u32":32, "d32":32}
+        self.V_w_dict = {}
+        self.V_b_dict = {}
+        self.bias_w_dict = {}
+        self.bias_b_dict = {}
+        for size in sizes.keys():
+            self.V_w_dict[size] = nn.Parameter(torch.empty(4, sizes[size])).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            self.V_b_dict[size] = nn.Parameter(torch.empty(4, sizes[size])).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+
+            # Initialize parameters
+            nn.init.xavier_uniform_(self.V_w_dict[size])
+            nn.init.xavier_uniform_(self.V_b_dict[size])
+        
+        
+
+        if skip_connection != 0:
+            self.nin_skip = conv_op(2 * skip_connection * num_filters, num_filters)  # assuming conv_op is adaptable
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.PKA = PolyakAveragedModel(input_dim, num_filters, use_ema=True).to(device)
+
+        self.mode = "B"
+
+    def forward(self, og_x, label, a=None, mode=None):
+
+        # result tensor
+        result_t = None
+        
+        if self.mode == "A":
+            x = self.conv_input(self.nonlinearity(og_x))
+            if a is not None:
+                x += self.nin_skip(self.nonlinearity(a))
+            x = self.nonlinearity(x)
+            x = self.dropout(x)
+            x = self.conv_out(x)
+            h_weighted = self.PKA(label)  # Output size should be [batch_size, 2 * num_filters]
+
+            # Ensure h_weighted is properly reshaped for broadcasting
+            # Shape [batch_size, 2 * num_filters, 1, 1]
+            h_weighted = h_weighted.view(x.size(0), 2 * self.num_filters, 1, 1)
+
+            # Broadcasting here is implicit when adding tensors of shape [batch_size, 2 * num_filters, 1, 1] and [batch_size, 2 * num_filters, height, width]
+            x += h_weighted  # Broadcasting works by aligning trailing dimensions
+            if self.training:
+                self.PKA.update_ema()
+
+            a, b = x.chunk(2, dim=1)
+            c3 = a * F.sigmoid(b)
+            result_t = c3 + og_x
+        
+        if self.mode == "B":
+            # mat mul with torch
+            #load the correct weights and biases
+            if mode == None:
+                raise Exception("Mode not set")
+            V_w = self.V_w_dict[mode]
+            V_b = self.V_b_dict[mode]
+            
+            if label != None:
+                b_w = torch.matmul(label, V_w)
+                b_b = torch.matmul(label, V_b)
+
+                b_w_shape = b_w.size()
+                b_w = torch.reshape(b_w, (b_w_shape[0], 1, 1, b_w_shape[1]))
+                b_b_shape = b_b.size()
+                b_b = torch.reshape(b_b, (b_b_shape[0], 1, 1, b_b_shape[1]))
+
+            x = self.conv_input(self.nonlinearity(og_x))
+            if a is not None:
+                x += self.nin_skip(self.nonlinearity(a))
+            x = self.nonlinearity(x)
+            x = self.dropout(x)
+            x = self.conv_out(x)
+            
+            s_w, s_b = x.chunk(2, dim=1)
+            result_t = torch.multiply(F.tanh(s_w + b_w), F.sigmoid(s_b + b_b))
+
+        if self.mode == "C":
+            # label is one hot of 4 class, add 4 additional channels, each channel is the same as the label
+            # label shape is sample size by class count(4)
+            
+            # this expands the label to the same size as the input
+            label = label.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, 32, 32)
+
+            # concatenate the label to the input
+            x = torch.cat([og_x, label], dim=1)
+            
+
+            x = self.conv_input(self.nonlinearity(x))
+            if a is not None:
+                x += self.nin_skip(self.nonlinearity(a))
+            x = self.nonlinearity(x)
+            x = self.dropout(x)
+            x = self.conv_out(x)
+            h_weighted = self.PKA(label)  # Output size should be [batch_size, 2 * num_filters]
+
+            # Ensure h_weighted is properly reshaped for broadcasting
+            # Shape [batch_size, 2 * num_filters, 1, 1]
+            h_weighted = h_weighted.view(x.size(0), 2 * self.num_filters, 1, 1)
+
+            # Broadcasting here is implicit when adding tensors of shape [batch_size, 2 * num_filters, 1, 1] and [batch_size, 2 * num_filters, height, width]
+            x += h_weighted  # Broadcasting works by aligning trailing dimensions
+            if self.training:
+                self.PKA.update_ema()
+
+            a, b = x.chunk(2, dim=1)
+            c3 = a * F.sigmoid(b)
+            result_t = c3 + og_x
+
+        
+        return result_t
+    
+
 '''
 skip connection parameter : 0 = no skip connection
                             1 = skip connection where skip input size === input size
@@ -148,6 +294,8 @@ class gated_resnet(nn.Module):
         x = self.nonlinearity(x)
         x = self.dropout(x)
         x = self.conv_out(x)
+
         a, b = torch.chunk(x, 2, dim=1)
         c3 = a * F.sigmoid(b)
         return og_x + c3
+    

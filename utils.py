@@ -21,6 +21,17 @@ def class_label_to_onehot(class_label, num_classes):
     return onehot
 '''
 
+def label_to_onehot_tensor(label_strings):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    label_dict = {'Class0': 0, 'Class1': 1, 'Class2': 2, 'Class3': 3}
+    label_indices = [ label_dict[label] for label in label_strings]
+    label_indices = torch.tensor(label_indices, dtype=torch.int64).to(device)  # Make sure to convert list to tensor
+
+    # One-hot encode the indices
+    label_one_hot = torch.nn.functional.one_hot(label_indices, num_classes=4).to(device)
+    label_one_hot = label_one_hot.float()
+    return label_one_hot
+
 def label_to_index(class_labels):
     """Convert class labels to indices using a predefined dictionary."""
     label_dict = {'Class0': 0, 'Class1': 1, 'Class2': 2, 'Class3': 3}
@@ -66,7 +77,7 @@ def log_prob_from_logits(x):
     return x - m - torch.log(torch.sum(torch.exp(x - m), dim=axis, keepdim=True))
 
 
-def discretized_mix_logistic_loss(x, l):
+def discretized_mix_logistic_loss(x, l, train=True):
     """ log-likelihood for mixture of discretized logistics, assumes the data has been rescaled to [-1,1] interval """
     # Pytorch ordering
     x = x.permute(0, 2, 3, 1)
@@ -130,8 +141,10 @@ def discretized_mix_logistic_loss(x, l):
     cond             = (x < -0.999).float()
     log_probs        = cond * log_cdf_plus + (1. - cond) * inner_out
     log_probs        = torch.sum(log_probs, dim=3) + log_prob_from_logits(logit_probs)
-    
-    return -torch.sum(log_sum_exp(log_probs))
+    if train:
+        return -torch.sum(log_sum_exp(log_probs))
+    else:
+        return -torch.sum(log_sum_exp(log_probs), dim=[1, 2])
 
 
 def to_one_hot(tensor, n, fill_with=1.):
@@ -230,7 +243,7 @@ def right_shift(x, pad=None):
     return pad(x)
 
 
-def sample(model, sample_batch_size, obs, sample_op, class_label:list=None):
+def sample(model, sample_batch_size, obs, sample_op, class_label:torch.tensor):
     """ sampling function
     Args:
         model: model to sample from
@@ -242,8 +255,6 @@ def sample(model, sample_batch_size, obs, sample_op, class_label:list=None):
     with torch.no_grad():
         data = torch.zeros(sample_batch_size, obs[0], obs[1], obs[2])
         data = data.to(next(model.parameters()).device)
-        # make class label match sample batch size
-        class_label = label_to_index(class_label)
         for i in range(obs[1]):
             for j in range(obs[2]):
                 data_v = data

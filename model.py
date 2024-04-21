@@ -7,16 +7,18 @@ class PixelCNNLayer_up(nn.Module):
         super(PixelCNNLayer_up, self).__init__()
         self.nr_resnet = nr_resnet
         # stream from pixels above
-        self.u_stream = nn.ModuleList([gated_resnet(nr_filters, down_shifted_conv2d,
-                                        resnet_nonlinearity, skip_connection=0)
+        self.u_stream = nn.ModuleList([gated_resnet_plus(nr_filters, 
+                                                         down_shifted_conv2d,
+                                        resnet_nonlinearity, 
+                                        skip_connection=0)
                                             for _ in range(nr_resnet)])
 
         # stream from pixels above and to thes left
-        self.ul_stream = nn.ModuleList([gated_resnet(nr_filters, down_right_shifted_conv2d,
+        self.ul_stream = nn.ModuleList([gated_resnet_plus(nr_filters, down_right_shifted_conv2d,
                                         resnet_nonlinearity, skip_connection=1)
                                             for _ in range(nr_resnet)])
 
-    def forward(self, u, ul):
+    def forward(self, u, ul, label):
         """ forward pass of PixelCNNLayer_up, it takes u and ul as input and apply the gated resnet
 
         Args:
@@ -29,8 +31,8 @@ class PixelCNNLayer_up(nn.Module):
         u_list, ul_list = [], []
 
         for i in range(self.nr_resnet):
-            u  = self.u_stream[i](u)
-            ul = self.ul_stream[i](ul, a=u)
+            u  = self.u_stream[i](u, label=label, mode = 'u' + str(u.size()[2]))
+            ul = self.ul_stream[i](ul, a=u, label=label, mode = 'u' + str(ul.size()[2]))
             u_list  += [u]
             ul_list += [ul]
 
@@ -42,22 +44,41 @@ class PixelCNNLayer_down(nn.Module):
         super(PixelCNNLayer_down, self).__init__()
         self.nr_resnet = nr_resnet
         # stream from pixels above
-        self.u_stream  = nn.ModuleList([gated_resnet(nr_filters, down_shifted_conv2d,
+        self.u_stream  = nn.ModuleList([gated_resnet_plus(nr_filters, down_shifted_conv2d,
                                         resnet_nonlinearity, skip_connection=1)
                                             for _ in range(nr_resnet)])
 
         # stream from pixels above and to thes left
-        self.ul_stream = nn.ModuleList([gated_resnet(nr_filters, down_right_shifted_conv2d,
+        self.ul_stream = nn.ModuleList([gated_resnet_plus(nr_filters, down_right_shifted_conv2d,
                                         resnet_nonlinearity, skip_connection=2)
                                             for _ in range(nr_resnet)])
 
-    def forward(self, u, ul, u_list, ul_list):
+    def forward(self, u, ul, u_list, ul_list, label):
         for i in range(self.nr_resnet):
             # bad practice, you should not be poping across class
-            u  = self.u_stream[i](u, a=u_list.pop())
-            ul = self.ul_stream[i](ul, a=torch.cat((u, ul_list.pop()), 1))
+            u_poped = u_list.pop()
+            u  = self.u_stream[i](u, a=u_poped, label=label, mode='d' + str(u_poped.size()[2]))
+            ul_poped = ul_list.pop()
+            ul = self.ul_stream[i](ul, a=torch.cat((u, ul_poped), 1), label=label, mode='d' + str(ul_poped.size()[2]))
 
         return u, ul
+    
+class ConditionalBatchNorm2d(nn.Module):
+    def __init__(self, num_features, num_classes):
+        super(ConditionalBatchNorm2d, self).__init__()
+        self.num_features = num_features
+        self.bn = nn.BatchNorm2d(num_features, affine=False)
+        self.embed = nn.Embedding(num_classes, num_features * 2)
+        self.embed.weight.data[:, :num_features].normal_(1, 0.02)  # Initialize gamma at 1
+        self.embed.weight.data[:, num_features:].zero_()  # Initialize beta at 0
+
+    def forward(self, x, y):
+        print(f"Input shape to BN: {x.shape}")  # Debug print
+        out = self.bn(x)
+        gamma, beta = self.embed(y).chunk(2, 1)
+        gamma = gamma.view(-1, self.num_features, 1, 1)
+        beta = beta.view(-1, self.num_features, 1, 1)
+        return gamma * out + beta
 
 
 class PixelCNN(nn.Module):
@@ -77,9 +98,11 @@ class PixelCNN(nn.Module):
         self.right_shift_pad = nn.ZeroPad2d((1, 0, 0, 0))
         self.down_shift_pad  = nn.ZeroPad2d((0, 0, 1, 0))
 
+        self.num_classes = num_classes
         down_nr_resnet = [nr_resnet] + [nr_resnet + 1] * 2
 
         self.class_embedding = nn.Embedding(num_embeddings=num_classes, embedding_dim=embedding_dim)
+        self.onehot_linear = nn.Linear(num_classes, nr_filters)
 
         self.down_layers = nn.ModuleList([PixelCNNLayer_down(down_nr_resnet[i], nr_filters,
                                                 self.resnet_nonlinearity) for i in range(3)])
@@ -113,18 +136,16 @@ class PixelCNN(nn.Module):
 
 
     def forward(self, x, sample=False, class_label:torch.tensor=None):
-        # x have shape [batch, channels, height, width]
-        # similar as done in the tf repo :
-        
+
         # Get class embeddings
-        if class_label is not None:
-            class_embeddings = self.class_embedding(class_label)
-            x = torch.cat([x, class_embeddings.unsqueeze(0)], dim=1)
-        else :
-            # exception
-            raise Exception("Class label is not provided")
-        # x now have shape [batch, channels + class_embedding_dim, height, width]
+        # if class_label is not None:
+        #     class_embeddings = self.class_embedding(class_label)
+        #     x = torch.cat([(x, class_embeddings.unsqueeze(0))], dim=1)
+        # else :
+        #     # exception
+        #     raise Exception("Class label is not provided")
         
+        # similar as done in the tf repo :
         if self.init_padding is not sample:
             xs = [int(y) for y in x.size()]
             padding = Variable(torch.ones(xs[0], 1, xs[2], xs[3]), requires_grad=False)
@@ -136,14 +157,14 @@ class PixelCNN(nn.Module):
             padding = padding.cuda() if x.is_cuda else padding
             x = torch.cat((x, padding), 1)
 
-        ###      UP PASS    ###
         x = x if sample else torch.cat((x, self.init_padding), 1)
 
         u_list  = [self.u_init(x)]
         ul_list = [self.ul_init[0](x) + self.ul_init[1](x)]
         for i in range(3):
             # resnet block
-            u_out, ul_out = self.up_layers[i](u_list[-1], ul_list[-1])
+            # mode = f/b + size (eg: 32, 16, 8) ie "f8"
+            u_out, ul_out = self.up_layers[i](u_list[-1], ul_list[-1], label=class_label)
             u_list  += u_out
             ul_list += ul_out
 
@@ -158,7 +179,7 @@ class PixelCNN(nn.Module):
 
         for i in range(3):
             # resnet block
-            u, ul = self.down_layers[i](u, ul, u_list, ul_list)
+            u, ul = self.down_layers[i](u, ul, u_list, ul_list, label=class_label)
 
             # upscale (only twice)
             if i != 2 :
@@ -170,7 +191,8 @@ class PixelCNN(nn.Module):
         assert len(u_list) == len(ul_list) == 0, pdb.set_trace()
 
         # output is [batch, nr_logistic_mix * nr_channels, height, width]
-        # where 
+        # where nr_logistic_mix is 10 in the experiments
+        # and nr_channels is 3 (RGB)
         return x_out
     
     
