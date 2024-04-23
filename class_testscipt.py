@@ -71,6 +71,17 @@ def get_label(model, model_input, device):
     # Compute probabilities using softmax
     _, pred = torch.min(all_predictions, dim=0)
     pred_2 = torch.argmin(torch.softmax(all_predictions, dim=0), dim=0)
+    # write the logit to a npy file, file file exist, append to it
+    logit_file = 'logits.npy'
+    if os.path.exists(logit_file):
+        logits = np.load(logit_file)
+        # Append new logits along the second dimension (i.e., for each class across batches)
+        updated_logits = np.append(logits, all_predictions.detach().cpu().numpy(), axis=1)
+        np.save(logit_file, updated_logits)
+    else:
+        # Save the logits for the first time.
+        np.save(logit_file, all_predictions.detach().cpu().numpy())
+
     if not torch.equal(pred, pred_2):
         print('Error in prediction')
         print(pred)
@@ -142,20 +153,6 @@ def record(model, data_loader, device, result_file_path):
 
 # End of your code
 
-def classifier(model, data_loader, device):
-    model.eval()
-    acc_tracker = ratio_tracker()
-    for batch_idx, item in enumerate(tqdm(data_loader)):
-        model_input, categories = item
-        model_input = model_input.to(device)
-        original_label = [my_bidict[item] for item in categories]
-        original_label = torch.tensor(original_label, dtype=torch.int64).to(device)
-        answer = get_label(model, model_input, device)
-        print(answer)
-        correct_num = torch.sum(answer == original_label)
-        acc_tracker.update(correct_num.item(), model_input.shape[0])
-    
-    return acc_tracker.get_ratio()
         
 
 if __name__ == '__main__':
@@ -204,7 +201,5 @@ if __name__ == '__main__':
     model.load_state_dict(torch.load('models/conditional_pixelcnn.pth'))
     model.eval()
     print('model parameters loaded')
-    acc = classifier(model = model, data_loader = dataloader, device = device)
-    print(f"Accuracy: {acc}")
         
         

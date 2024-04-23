@@ -2,12 +2,11 @@
 .idea/
 wandb
 *log
-models
+pcnn_cpen455_from_scratch_*
 models_40_10
 models_1
 data/MNIST
 data/Imagenet*
-samples/*.jpg
 
 # Created by https://www.toptal.com/developers/gitignore/api/macos,visualstudiocode,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,visualstudiocode,python
