@@ -24,8 +24,15 @@ def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, m
     loss_tracker = mean_tracker()
     
     for batch_idx, item in enumerate(tqdm(data_loader)):
+        
         model_input, label_strings = item
         model_input = model_input.to(device)
+        transformed_images = []
+        for image in model_input:
+            transformed_image = randomly_transform_image(image)
+            transformed_images.append(transformed_image)
+        model_input = torch.stack(transformed_images)
+
         # label from list to tensor
         #label_indices = torch.nn.functional.one_hot(label_strings, num_classes=4).to(device)
         label_one_hot = label_to_onehot_tensor(label_strings).to(device)
@@ -69,7 +76,7 @@ if __name__ == '__main__':
                         help='Observation shape')
     
     # model
-    parser.add_argument('-q', '--nr_resnet', type=int, default=5,
+    parser.add_argument('-q', '--nr_resnet', type=int, default=1,
                         help='Number of residual blocks per stage of the model')
     parser.add_argument('-n', '--nr_filters', type=int, default=160,
                         help='Number of filters to use across the model. Higher = larger model.')
@@ -79,7 +86,7 @@ if __name__ == '__main__':
                         default=0.0002, help='Base learning rate')
     parser.add_argument('-e', '--lr_decay', type=float, default=0.999995,
                         help='Learning rate decay, applied every step of the optimization')
-    parser.add_argument('-b', '--batch_size', type=int, default=64,
+    parser.add_argument('-b', '--batch_size', type=int, default=32,
                         help='Batch size during training per GPU')
     parser.add_argument('-sb', '--sample_batch_size', type=int, default=32,
                         help='Batch size during sampling per GPU')

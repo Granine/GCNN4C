@@ -3,6 +3,8 @@
 wandb
 *log
 models
+models_40_10
+models_1
 data/MNIST
 data/Imagenet*
 samples/*.jpg

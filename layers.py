@@ -150,7 +150,7 @@ class gated_resnet_plus(nn.Module):
         self.nonlinearity = nonlinearity
         self.conv_input = conv_op(2 * num_filters, num_filters)
         self.conv_out = conv_op(2 * num_filters, 2 * num_filters)
-        self.dropout = nn.Dropout2d(0.5)
+        self.dropout = nn.Dropout2d(0.)
         self.num_filters = num_filters
         
         sizes = {"u8":8, "d8":8, "u16":16, "d16":16, "u32":32, "d32":32}
@@ -163,8 +163,11 @@ class gated_resnet_plus(nn.Module):
             self.V_b_dict[size] = nn.Parameter(torch.empty(4, sizes[size])).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
             # Initialize parameters
-            nn.init.xavier_uniform_(self.V_w_dict[size])
-            nn.init.xavier_uniform_(self.V_b_dict[size])
+            # nn.init.xavier_uniform_(self.V_w_dict[size])
+            # nn.init.xavier_uniform_(self.V_b_dict[size])
+
+            nn.init.kaiming_uniform_(self.V_w_dict[size], nonlinearity='relu')
+            nn.init.kaiming_uniform_(self.V_b_dict[size], nonlinearity='relu')
         
         
 
@@ -228,7 +231,7 @@ class gated_resnet_plus(nn.Module):
             x = self.conv_out(x)
             
             s_w, s_b = x.chunk(2, dim=1)
-            result_t = torch.multiply(F.tanh(s_w + b_w), F.sigmoid(s_b + b_b))
+            result_t = torch.multiply(s_w + b_w, F.sigmoid(s_b + b_b)) + og_x
 
         if self.mode == "C":
             # label is one hot of 4 class, add 4 additional channels, each channel is the same as the label
@@ -299,3 +302,101 @@ class gated_resnet(nn.Module):
         c3 = a * F.sigmoid(b)
         return og_x + c3
     
+    
+'''
+skip connection parameter : 0 = no skip connection
+                            1 = skip connection where skip input size === input size
+                            2 = skip connection where skip input size === 2 * input size
+'''
+class gated_resnet(nn.Module):
+    def __init__(self, num_filters, conv_op, nonlinearity=concat_elu, skip_connection=0):
+        super(gated_resnet, self).__init__()
+        self.skip_connection = skip_connection
+        self.nonlinearity = nonlinearity
+        self.conv_input = conv_op(2 * num_filters, num_filters) # cuz of concat elu
+
+        if skip_connection != 0 :
+            self.nin_skip = nin(2 * skip_connection * num_filters, num_filters)
+
+        # we apply dropout after the first layer and before the last layer
+        # dropout chance is 0.5
+        self.dropout = nn.Dropout2d(0.5)
+        self.conv_out = conv_op(2 * num_filters, 2 * num_filters)
+        self.a_1 = nn.Parameter(torch.empty(4, num_filters, 32, 32)).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        nn.init.kaiming_uniform_(self.a_1, nonlinearity='relu')
+        self.b_1 = nn.Parameter(torch.empty(4, num_filters, 32, 32)).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        nn.init.kaiming_uniform_(self.b_1, nonlinearity='relu')
+
+
+    def forward(self, og_x, a=None, label=None, mode=None):
+        #if label not of size 4, error
+        if label != None and label.size(1) != 4:
+            raise Exception("Label must be of size 4")
+        
+
+        x = self.conv_input(self.nonlinearity(og_x))
+        if a is not None :
+            x += self.nin_skip(self.nonlinearity(a))
+        x = self.nonlinearity(x)
+        x = self.dropout(x)
+        x = self.conv_out(x)
+
+        a_m = self.a_1
+        b_m = self.b_1
+
+        # Perform check if tensors need to be resized 
+        current_size = a_m.size(-1)  # Assuming square shape, both dimensions are the same
+        desired_size = og_x.size(-1)
+
+        # Check if current size is larger than desired size, and calculate the factor of downsampling
+        if current_size > desired_size:
+            factor = int(current_size / desired_size)
+
+            # Apply average pooling to downsample
+            # Kernel size and stride both are the downsampling factor
+            a_m = F.avg_pool2d(a_m, kernel_size=factor, stride=factor, count_include_pad=False)
+            b_m = F.avg_pool2d(b_m, kernel_size=factor, stride=factor, count_include_pad=False)
+
+        a, b = torch.chunk(x, 2, dim=1)
+
+        a_m = a_m.unsqueeze(0) # Now a_m is [1, 4, 160, 32, 32]
+        b_m = b_m.unsqueeze(0) # Now b_m is [1, 4, 160, 32, 32]
+        
+        a_m = a_m.expand(a.size(0), -1, -1, -1, -1)
+        b_m = b_m.expand(b.size(0), -1, -1, -1, -1)
+
+        a_m = label.view(og_x.size(0), 4, 1, 1, 1) * a_m
+        b_m = label.view(og_x.size(0), 4, 1, 1, 1) * b_m
+
+        # Now we expand it to match the dimensions of a_m (and b_m) 
+        
+        # a have size 64 by 80 by 32 by 32
+        a = a + a_m.sum(dim=1)
+        b = b + b_m.sum(dim=1)
+        c3 = a * F.sigmoid(b)
+        return og_x + c3
+    
+class gated_resnet_o(nn.Module):
+    def __init__(self, num_filters, conv_op, nonlinearity=concat_elu, skip_connection=0):
+        super(gated_resnet, self).__init__()
+        self.skip_connection = skip_connection
+        self.nonlinearity = nonlinearity
+        self.conv_input = conv_op(2 * num_filters, num_filters) # cuz of concat elu
+
+        if skip_connection != 0 :
+            self.nin_skip = nin(2 * skip_connection * num_filters, num_filters)
+
+        self.dropout = nn.Dropout2d(0.5)
+        self.conv_out = conv_op(2 * num_filters, 2 * num_filters)
+
+
+    def forward(self, og_x, a=None):
+        x = self.conv_input(self.nonlinearity(og_x))
+        if a is not None :
+            x += self.nin_skip(self.nonlinearity(a))
+        x = self.nonlinearity(x)
+        x = self.dropout(x)
+        x = self.conv_out(x)
+        a, b = torch.chunk(x, 2, dim=1)
+        c3 = a * F.sigmoid(b)
+        return og_x + c3

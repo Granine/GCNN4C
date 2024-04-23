@@ -53,40 +53,43 @@
 PixelCNN++G is a conditional generative model based on the PixelCNN architecture. For this project, we aim to implement the PixelCNN++G model with an additional classification layer, making it an image classification model. The model will be trained on the CPEN450 dataset to classify images into one of four classes.
 
 \paragraph{Model Description}
-PixelCNN++G Modification:
+PixelCNN++G Innovative improvement
 
-- 
-- 
+- DataPreprocessing
+  - Since PixelCNN is a directional dependent model, meaning it have difficulty learning the orenentation of objects, we randomly flip the images horizontally during training to ensure the model is invariant to the direction of the image. 
+  - Similarly, we perform rotation on images so the model can learn the orientation of the object, with reduce impact of the direction of the image.
+- Conditional Model
+    - The model is conditioned on the class label of the image, which is passed as an additional input to the model. This allows the model to learn class-specific features and improve classification accuracy.
+    - A new set of weights is introduced at every layer of the upward and downward path (6 in total), each will be multiplied with the class label embedding before being used in the convolutional layers. This is an idea expanded on the [1] design of the Conditional PixelCNN, but insead of introducing bias to control the complete class shift, we introduce a set of weights to control the class shift at each layer, hoping that through adapting the label at each layer, a stronger correlation between the image and class can be established.
+- Classification Layer
+    - We utilized the loss function as the classification layer, with the idea that if we iterate through an image with all labels, the label that produces the lowest loss will be the label that the model predicts. This is a simple and effective way to perform classification without the need for additional layers or parameters.
 
-Classification Layer:
-
-\paragraph{Rationale}
-Justify the choice of your model. Why is it suitable for the problem at hand? Reference any previous work or theories that your model is based upon, or discuss how it improves or differs from existing methods.
 
 \section{Experiments}
+The model is trained on the CPEN450 dataset, 32x32 pixel images divided into four classes. With a batch size of 16 with 500 epochs, the additional conditional parameters are trained with xavier uniform initialization. 
 
-\paragraph{Dataset}
-Describe the dataset\(s\) used in your experiments. Include information about the size, features, source, and any preprocessing steps taken.
-
-\paragraph{Experiment Setup}
-Outline how the experiments were conducted. Describe the configuration settings like hardware and software environment, splitting the dataset, or any data augmentation techniques used.
-
-\paragraph{Hyper-parameters}
-Detail the hyper-parameters used in the training of the model, and justify why these were chosen. Discuss any parameter tuning or optimization techniques employed.
+\section{Attempted Solution}
+Other attempted solution, which do not show as promising results, include:
+- Directly embedding label information into the input or output of the model, which did not show significant improvement in classification accuracy.
+- Using a PolyakAveragedModel to embed and concatenate with the input model at resnet block, which showed promissing results interms of FID of [] but did not show significant improvement in classification accuracy.
+- A one-hot channel solution, with 4 additional channels to the input image, each representing a class, which did not show significant improvement in classification accuracy.
+- Attempts to use a different downpass weight for every class have also been attempted, while this is proven to have a resonable image generation quality, it failed to obtain a strong FID score and have more randomized BPD values.
 
 \paragraph{Results}
-Present the outcomes of your experiments. Use tables, charts, and graphs to visually summarize the findings. Discuss any metrics used to evaluate the model’s performance like accuracy, precision, recall, F1 score, etc.
+With the model trained, we achieved an accuracy of 44\% on the test set. The model is able to classify images into the correct class with reasonable accuracy.
+
+\begin{figure}[htp]
+    \centering
+    \includegraphics[width=0.5\textwidth]{a1.png}
+    \caption{Example image}
+    \label{fig:exampleImage}
+\end{figure}
 
 \section{Conclusion}
 
 \paragraph{Summary}
 Provide a brief summary of the key findings from your experiments and the implications of these results. Recap the primary goal of the paper and whether it was achieved.
 
-\paragraph{Future Work}
-Discuss potential improvements or next steps that could be taken to advance the project. This might include experimenting with different models, applying the solution to different datasets, or addressing limitations in the current approach.
-
-\paragraph{Impact}
-Reflect on the broader impact of your work. This might include practical applications, societal benefits, or how it contributes to the field of study.
 
 \section{Appendices or Supplemental Materials}
 

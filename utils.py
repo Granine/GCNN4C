@@ -6,22 +6,75 @@ from torch.autograd import Variable
 from torch.nn.utils import weight_norm as wn
 import numpy as np
 import os
-from PIL import Image
-'''
-def class_label_to_onehot(class_label, num_classes):
-    labels = ['Class0', 'Class1', 'Class2', 'Class3']
+from PIL import Image, ImageOps
+from torchvision import transforms
 
-    # Creating the label to index mapping
-    label_to_index = {label: idx for idx, label in enumerate(labels)}
+def randomly_transform_image(image_tensor):
+    """
+    Apply random horizontal flip and random rotation within a specified range to an image tensor.
+    
+    Args:
+    image_tensor (Tensor): A single image tensor of shape (C, H, W)
+    
+    Returns:
+    Tensor: Transformed image tensor.
+    """
+    transform_ops = transforms.Compose([
+        transforms.RandomHorizontalFlip(),  # Randomly flip the images
+        transforms.RandomRotation(degrees=(-10, 10)),  # Random rotation between -10 and +10 degrees
+    ])
+    
+    return transform_ops(image_tensor)
 
-    # Creating the one-hot encoded vector
-    onehot = np.zeros(num_classes)
-    onehot[label_to_index[class_label]] = 1
 
-    return onehot
-'''
+def flip(image_path):
+    """
+    Function to flip an image horizontally.
 
-def label_to_onehot_tensor(label_strings):
+    Args:
+    image_path (str): Path to the input image file.
+
+    Returns:
+    Image: A PIL Image object that is flipped horizontally.
+    """
+    with Image.open(image_path) as img:
+        # Ensure the image is in the correct size (32x32)
+        img = img.resize((32, 32)) if img.size != (32, 32) else img
+        # Flip the image
+        flipped_img = ImageOps.mirror(img)
+        return flipped_img
+
+def rotate(image_path, degree):
+    """
+    Function to rotate an image by a specified degree between -10 and +10 degrees.
+
+    Args:
+    image_path (str): Path to the input image file.
+    degree (int or float): The degree between -10 and +10 by which to rotate the image.
+
+    Returns:
+    Image: A PIL Image object that is rotated by the specified degrees.
+    """
+    if not (-10 <= degree <= 10):
+        raise ValueError("Degree must be between -10 and +10.")
+    
+    with Image.open(image_path) as img:
+        # Ensure the image is in the correct size (32x32)
+        img = img.resize((32, 32)) if img.size != (32, 32) else img
+        # Rotate the image
+        rotated_img = img.rotate(-degree)  # Negative because PIL rotates counter-clockwise
+        return rotated_img
+
+
+def label_to_onehot_tensor(label_strings:list):
+    # input check
+    if not isinstance(label_strings, list):
+        raise ValueError("Input should be a list of strings.")
+    if not all(isinstance(label, str) for label in label_strings):
+        raise ValueError("Input should be a list of strings.")
+    if not all(label in ['Class0', 'Class1', 'Class2', 'Class3'] for label in label_strings):
+        raise ValueError("Input should be a list of strings from ['Class0', 'Class1', 'Class2', 'Class3'].")
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     label_dict = {'Class0': 0, 'Class1': 1, 'Class2': 2, 'Class3': 3}
     label_indices = [ label_dict[label] for label in label_strings]
@@ -31,27 +84,6 @@ def label_to_onehot_tensor(label_strings):
     label_one_hot = torch.nn.functional.one_hot(label_indices, num_classes=4).to(device)
     label_one_hot = label_one_hot.float()
     return label_one_hot
-
-def label_to_index(class_labels):
-    """Convert class labels to indices using a predefined dictionary."""
-    label_dict = {'Class0': 0, 'Class1': 1, 'Class2': 2, 'Class3': 3}
-    indices = [label_dict[label] for label in class_labels if label in label_dict]
-
-    if len(indices) != len(class_labels):
-        raise ValueError("One or more labels are invalid.")
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return torch.tensor(indices, dtype=torch.long, device=device)
-
-def index_to_label(indices):
-    """Convert indices to class labels using a predefined dictionary."""
-    label_dict = {0: 'Class0', 1: 'Class1', 2: 'Class2', 3: 'Class3'}
-    labels = [label_dict.get(index) for index in indices]
-
-    if None in labels:
-        raise ValueError("One or more indices are invalid.")
-
-    return labels
 
 def concat_elu(x):
     """ like concatenated ReLU (http://arxiv.org/abs/1603.05201), but then with ELU """
