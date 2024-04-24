@@ -7,6 +7,7 @@ models_40_10
 models_1
 data/MNIST
 data/Imagenet*
+samples_*
 
 # Created by https://www.toptal.com/developers/gitignore/api/macos,visualstudiocode,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,visualstudiocode,python

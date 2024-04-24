@@ -27,7 +27,8 @@ def get_label_single(model, model_input, device):
     
     for j in range(batch_size):
         single_input = model_input[j].unsqueeze(0)  # Get a single image and maintain it as a batch of size 1
-
+        # print size
+        print(single_input.size())
         for i in range(NUM_CLASSES):
             # Convert label to tensor representation for a single example
             class_label = torch.zeros(1, NUM_CLASSES, device=device)  # Adjusted for batch size of 1
@@ -41,10 +42,20 @@ def get_label_single(model, model_input, device):
             all_predictions[i, j] = discretized_mix_logistic_loss(single_input, raw_output, train=False)
     
     # Compute probabilities using softmax, and find predictions
-    _, pred = torch.max(all_predictions, dim=0)  # No change required here
+    _, pred = torch.min(all_predictions, dim=0)  # No change required here
 
     # Additional check for prediction correctness
-    pred_2 = torch.argmax(torch.softmax(all_predictions, dim=0), dim=0)
+    pred_2 = torch.argmin(torch.softmax(all_predictions, dim=0), dim=0)
+
+    logit_file = 'logits.npy'
+    if os.path.exists(logit_file):
+        logits = np.load(logit_file)
+        # Append new logits along the second dimension (i.e., for each class across batches)
+        updated_logits = np.append(logits, all_predictions.detach().cpu().numpy(), axis=1)
+        np.save(logit_file, updated_logits)
+    else:
+        # Save the logits for the first time.
+        np.save(logit_file, all_predictions.detach().cpu().numpy())
 
     print('Error in prediction')
     print(pred)
@@ -131,7 +142,6 @@ class CPEN455Dataset_path(Dataset):
 
 import torchvision.transforms as transforms
 def record(model, data_loader, device, result_file_path):
-    model.eval()
     
     with open(result_file_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
@@ -161,7 +171,7 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--data_dir', type=str,
                         default='data', help='Location for the dataset')
     parser.add_argument('-b', '--batch_size', type=int,
-                        default=16, help='Batch size for inference')
+                        default=1, help='Batch size for inference')
     parser.add_argument('-m', '--mode', type=str,
                         default='validation', help='Mode for the dataset')
     
@@ -188,10 +198,10 @@ if __name__ == '__main__':
                                              batch_size=args.batch_size, 
                                              shuffle=True, 
                                              **kwargs)
-    model = model.to(device)
-    model.load_state_dict(torch.load('models/conditional_pixelcnn.pth'))
-    model.eval()
-    record(model, dataloader_t, device, 'results.csv')
+    # clear logit file:
+    logit_file = 'logits.npy'
+    if os.path.exists(logit_file):
+        os.remove(logit_file)
 
     #End of your code
     
@@ -200,6 +210,7 @@ if __name__ == '__main__':
     #You should save your model to this path
     model.load_state_dict(torch.load('models/conditional_pixelcnn.pth'))
     model.eval()
+    record(model, dataloader_t, device, 'results.csv')
     print('model parameters loaded')
         
         
