@@ -28,12 +28,13 @@ def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, m
     for batch_idx, item in enumerate(tqdm(data_loader)):
         
         model_input, label_strings = item
-        # 
-        # transformed_images = []
-        # for image in model_input:
-        #     transformed_image = randomly_transform_image(image)
-        #     transformed_images.append(transformed_image)
-        # model_input = torch.stack(transformed_images)
+        enable_transforms = True
+        if (enable_transforms):
+            transformed_images = []
+            for image in model_input:
+                transformed_image = randomly_transform_image(image)
+                transformed_images.append(transformed_image)
+            model_input = torch.stack(transformed_images)
 
         # label from list to tensor
         #label_indices = torch.nn.functional.one_hot(label_strings, num_classes=4).to(device)

@@ -107,15 +107,15 @@ if __name__ == '__main__':
     eval_result = {}
     for file in os.listdir(model_path):
         if file.endswith('.pth'):
-            model_path = os.path.join(model_path, file)
-            model = PixelCNN(nr_resnet=1, nr_filters=40, input_channels=3, nr_logistic_mix=100)
+            model_path_full = os.path.join(model_path, file)
+            model = PixelCNN(nr_resnet=1, nr_filters=128, input_channels=3, nr_logistic_mix=100)
 
             #End of your code
 
             model = model.to(device)
             #Attention: the path of the model is fixed to 'models/conditional_pixelcnn.pth'
             #You should save your model to this path
-            model.load_state_dict(torch.load(model_path))
+            model.load_state_dict(torch.load(model_path_full))
             model.eval()
             print('model parameters loaded')
             acc = classifier(model = model, data_loader = dataloader, device = device)

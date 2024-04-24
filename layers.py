@@ -143,10 +143,9 @@ class PolyakAveragedModel(nn.Module):
         hw = self.ema_hw if self.use_ema else self.hw
         return torch.matmul(h, hw)
 
-# in part debuged by gpt 
-class gated_resnet_plus(nn.Module):
+class gated_resnet_p(nn.Module):
     def __init__(self, num_filters, conv_op, nonlinearity=F.elu, skip_connection=0, input_dim=4):
-        super(gated_resnet_plus, self).__init__()
+        super(gated_resnet, self).__init__()
         self.skip_connection = skip_connection
         self.nonlinearity = nonlinearity
         self.conv_input = conv_op(2 * num_filters, num_filters)
@@ -155,13 +154,14 @@ class gated_resnet_plus(nn.Module):
         self.num_filters = num_filters
         
         sizes = {"u8":8, "d8":8, "u16":16, "d16":16, "u32":32, "d32":32}
+        
         self.V_w_dict = {}
         self.V_b_dict = {}
         self.bias_w_dict = {}
         self.bias_b_dict = {}
         for size in sizes.keys():
-            self.V_w_dict[size] = nn.Parameter(torch.empty(4, sizes[size])).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-            self.V_b_dict[size] = nn.Parameter(torch.empty(4, sizes[size])).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            self.V_w_dict[size] = nn.Parameter(torch.empty(4, sizes[size]))
+            self.V_b_dict[size] = nn.Parameter(torch.empty(4, sizes[size]))
 
             # Initialize parameters
             # nn.init.xavier_uniform_(self.V_w_dict[size])
@@ -212,12 +212,10 @@ class gated_resnet_plus(nn.Module):
             #load the correct weights and biases
             if mode == None:
                 raise Exception("Mode not set")
-            V_w = self.V_w_dict[mode]
-            V_b = self.V_b_dict[mode]
             
             if label != None:
-                b_w = torch.matmul(label, V_w)
-                b_b = torch.matmul(label, V_b)
+                b_w = torch.matmul(label, self.V_w_dict[mode])
+                b_b = torch.matmul(label, self.V_b_dict[mode])
 
                 b_w_shape = b_w.size()
                 b_w = torch.reshape(b_w, (b_w_shape[0], 1, 1, b_w_shape[1]))
@@ -232,7 +230,7 @@ class gated_resnet_plus(nn.Module):
             x = self.conv_out(x)
             
             s_w, s_b = x.chunk(2, dim=1)
-            result_t = torch.multiply(s_w + b_w, F.sigmoid(s_b + b_b)) + og_x
+            result_t = torch.multiply((s_w + b_w), F.sigmoid(s_b + b_b)) + og_x
 
         if self.mode == "C":
             # label is one hot of 4 class, add 4 additional channels, each channel is the same as the label
@@ -383,8 +381,11 @@ class gated_resnet(nn.Module):
         self.dropout = nn.Dropout2d(0.5)
         self.conv_out = conv_op(2 * num_filters, 2 * num_filters)
 
-        self.weight_a = nn.Parameter(torch.randn(4, 2 * num_filters))
-        #self.gr_weight_b = nn.Parameter(torch.randn(4, 2 * num_filters))
+        # if apply to x, use self.weight_a = nn.Parameter(torch.empty(4, 2 * num_filters))
+        self.weight_a = nn.Parameter(torch.empty(4, num_filters))
+        nn.init.kaiming_uniform_(self.weight_a, nonlinearity='relu')
+        self.weight_b = nn.Parameter(torch.empty(4, num_filters))
+        nn.init.kaiming_uniform_(self.weight_b, nonlinearity='relu')
 
     def forward(self, og_x, a=None, label=None, mode=None):
         if label == None or label.size(1) != 4:
@@ -395,11 +396,15 @@ class gated_resnet(nn.Module):
         x = self.nonlinearity(x)
         x = self.dropout(x)
         x = self.conv_out(x)
-
-        weighted_x = torch.matmul(label, self.weight_a)
-        x += weighted_x[:, :, None, None]
+        
+        weighted_a = torch.matmul(label, self.weight_a)
+        weighted_b = torch.matmul(label, self.weight_b)
+        # if apply to x, use x = x + torch.matmul(label, self.weight_a)
 
         a, b = torch.chunk(x, 2, dim=1)
+        a = a + weighted_a[:, :, None, None]
+        b = b + weighted_b[:, :, None, None]
+
         c3 = a * torch.sigmoid(b)
         return og_x + c3
 

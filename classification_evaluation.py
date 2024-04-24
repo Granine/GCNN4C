@@ -36,12 +36,8 @@ def get_label(model, model_input, device):
         all_predictions[i] = discretized_mix_logistic_loss(model_input, raw_output, train=False)
         
     # Compute probabilities using softmax
-    _, pred = torch.min(all_predictions, dim=0)
-    pred_2 = torch.argmin(torch.softmax(all_predictions, dim=0), dim=0)
-    if not torch.equal(pred, pred_2):
-        print('Error in prediction')
-        print(pred)
-        print(pred_2)
+    _, pred = torch.min(all_predictions, dim=0) # bettr, as we are using negative log likelihood
+    # pred_2 = torch.argmin(torch.softmax(all_predictions, dim=0), dim=0)
     return pred
 
 import random
