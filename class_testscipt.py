@@ -15,6 +15,7 @@ from pprint import pprint
 import argparse
 import torch
 import csv
+from classification_evaluation import fix_seeds
 
 NUM_CLASSES = len(my_bidict)
 
@@ -204,13 +205,35 @@ if __name__ == '__main__':
         os.remove(logit_file)
 
     #End of your code
+    fix_seeds()
+    base = 'models/'
+    model_list = [
+    'pcnn_cpen455_from_scratch_499.pth',
+    'pcnn_cpen455_from_scratch_474.pth',
+    'pcnn_cpen455_from_scratch_324.pth',
+    'pcnn_cpen455_from_scratch_399.pth',
+    'pcnn_cpen455_from_scratch_424.pth'
+]
+    for model_path_full in model_list:
+
+        model = PixelCNN(nr_resnet=1, nr_filters=128, input_channels=3, nr_logistic_mix=100)
+
+        #End of your code
+
+        model = model.to(device)
+        #Attention: the path of the model is fixed to 'models/conditional_pixelcnn.pth'
+        #You should save your model to this path
+        model.load_state_dict(torch.load(base + model_path_full))
+        model.eval()
+        model_name = os.path.basename(model_path_full)
+        # strip pcnn_cpen455_from_, if it exist
+        model_name = model_name.replace('pcnn_cpen455_from_', '')
+        record(model, dataloader_t, device, 'results_' + model_name + '.csv')
+        # clean
+        del model
+        torch.cuda.empty_cache()
+  
     
-    model = model.to(device)
-    #Attention: the path of the model is fixed to 'models/conditional_pixelcnn.pth'
-    #You should save your model to this path
-    model.load_state_dict(torch.load('models/conditional_pixelcnn.pth'))
-    model.eval()
-    record(model, dataloader_t, device, 'results.csv')
     print('model parameters loaded')
         
         
