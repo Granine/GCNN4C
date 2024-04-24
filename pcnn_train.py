@@ -13,6 +13,8 @@ from pprint import pprint
 import argparse
 from pytorch_fid.fid_score import calculate_fid_given_paths
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 
 def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, mode = 'training'):
     if mode == 'training':
@@ -26,16 +28,17 @@ def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, m
     for batch_idx, item in enumerate(tqdm(data_loader)):
         
         model_input, label_strings = item
-        model_input = model_input.to(device)
-        transformed_images = []
-        for image in model_input:
-            transformed_image = randomly_transform_image(image)
-            transformed_images.append(transformed_image)
-        model_input = torch.stack(transformed_images)
+        # 
+        # transformed_images = []
+        # for image in model_input:
+        #     transformed_image = randomly_transform_image(image)
+        #     transformed_images.append(transformed_image)
+        # model_input = torch.stack(transformed_images)
 
         # label from list to tensor
         #label_indices = torch.nn.functional.one_hot(label_strings, num_classes=4).to(device)
         label_one_hot = label_to_onehot_tensor(label_strings).to(device)
+        model_input = model_input.to(device)
         model_output = model(model_input, class_label=label_one_hot)
         loss = loss_op(model_input, model_output)
         loss_tracker.update(loss.item()/deno)
@@ -100,8 +103,16 @@ if __name__ == '__main__':
     check_dir_and_create(args.save_dir)
     
     # reproducibility
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
+    def lock_seed(seed):
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
+        os.environ['PYTHONHASHSEED'] = str(seed)
+        
+    lock_seed(args.seed)
+
     
     model_name = 'pcnn_' + args.dataset + "_"
     model_path = args.save_dir + '/'

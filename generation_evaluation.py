@@ -27,8 +27,18 @@ def my_sample(model, gen_data_dir, sample_batch_size = 25, obs = (3,32,32), samp
         save_images(sample_t, os.path.join(gen_data_dir), label=label)
     pass
 
-# End of your code
+import random
+ # Set seeds for reproducibility
+def fix_seeds(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
+# End of your code
 
 
 if __name__ == "__main__":
@@ -40,9 +50,10 @@ if __name__ == "__main__":
     if not os.path.exists(gen_data_dir):
         os.makedirs(gen_data_dir)
     #Begin of your code
+    fix_seeds()
     model_path = r'.\models/conditional_pixelcnn.pth'
     #Load your model and generate images in the gen_data_dir
-    model = PixelCNN(nr_resnet=2, nr_filters=160, input_channels=3, nr_logistic_mix=100)
+    model = PixelCNN(nr_resnet=1, nr_filters=40, input_channels=3, nr_logistic_mix=100)
     model = model.to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model = model.eval()

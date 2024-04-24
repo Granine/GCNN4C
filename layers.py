@@ -269,39 +269,6 @@ class gated_resnet_plus(nn.Module):
         
         return result_t
     
-
-'''
-skip connection parameter : 0 = no skip connection
-                            1 = skip connection where skip input size === input size
-                            2 = skip connection where skip input size === 2 * input size
-'''
-class gated_resnet(nn.Module):
-    def __init__(self, num_filters, conv_op, nonlinearity=concat_elu, skip_connection=0):
-        super(gated_resnet, self).__init__()
-        self.skip_connection = skip_connection
-        self.nonlinearity = nonlinearity
-        self.conv_input = conv_op(2 * num_filters, num_filters) # cuz of concat elu
-
-        if skip_connection != 0 :
-            self.nin_skip = nin(2 * skip_connection * num_filters, num_filters)
-
-        # we apply dropout after the first layer and before the last layer
-        # dropout chance is 0.5
-        self.dropout = nn.Dropout2d(0.5)
-        self.conv_out = conv_op(2 * num_filters, 2 * num_filters)
-
-
-    def forward(self, og_x, a=None):
-        x = self.conv_input(self.nonlinearity(og_x))
-        if a is not None :
-            x += self.nin_skip(self.nonlinearity(a))
-        x = self.nonlinearity(x)
-        x = self.dropout(x)
-        x = self.conv_out(x)
-
-        a, b = torch.chunk(x, 2, dim=1)
-        c3 = a * F.sigmoid(b)
-        return og_x + c3
     
     
 '''
@@ -309,7 +276,7 @@ skip connection parameter : 0 = no skip connection
                             1 = skip connection where skip input size === input size
                             2 = skip connection where skip input size === 2 * input size
 '''
-class gated_resnet(nn.Module):
+class gated_resnet_i(nn.Module):
     def __init__(self, num_filters, conv_op, nonlinearity=concat_elu, skip_connection=0):
         super(gated_resnet, self).__init__()
         self.skip_connection = skip_connection
@@ -333,7 +300,6 @@ class gated_resnet(nn.Module):
         #if label not of size 4, error
         if label != None and label.size(1) != 4:
             raise Exception("Label must be of size 4")
-        
 
         x = self.conv_input(self.nonlinearity(og_x))
         if a is not None :
@@ -401,3 +367,43 @@ class gated_resnet_o(nn.Module):
         a, b = torch.chunk(x, 2, dim=1)
         c3 = a * F.sigmoid(b)
         return og_x + c3
+    
+    
+
+class gated_resnet(nn.Module):
+    def __init__(self, num_filters, conv_op, nonlinearity=concat_elu, skip_connection=0):
+        super(gated_resnet, self).__init__()
+        self.skip_connection = skip_connection
+        self.nonlinearity = nonlinearity
+        self.conv_input = conv_op(2 * num_filters, num_filters) # cuz of concat elu
+
+        if skip_connection != 0 :
+            self.nin_skip = nin(2 * skip_connection * num_filters, num_filters)
+
+        self.dropout = nn.Dropout2d(0.5)
+        self.conv_out = conv_op(2 * num_filters, 2 * num_filters)
+
+        self.weight_a = nn.Parameter(torch.randn(4, 2 * num_filters))
+        #self.gr_weight_b = nn.Parameter(torch.randn(4, 2 * num_filters))
+
+    def forward(self, og_x, a=None, label=None, mode=None):
+        if label == None or label.size(1) != 4:
+            raise Exception("Label must be of size 4")
+        x = self.conv_input(self.nonlinearity(og_x))
+        if a is not None :
+            x += self.nin_skip(self.nonlinearity(a))
+        x = self.nonlinearity(x)
+        x = self.dropout(x)
+        x = self.conv_out(x)
+
+        weighted_x = torch.matmul(label, self.weight_a)
+        x += weighted_x[:, :, None, None]
+
+        a, b = torch.chunk(x, 2, dim=1)
+        c3 = a * torch.sigmoid(b)
+        return og_x + c3
+
+# 4* filter size 2
+# a = matri
+# x += matmul(a) = [:, :, None, None ]
+# 
