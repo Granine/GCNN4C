@@ -58,8 +58,6 @@ def get_label(model, model_input, device):
     for i in range(NUM_CLASSES):
         # Convert label to tensor representation
         class_label = label_to_onehot_tensor([my_bidict.inverse[i]]*batch_size)
-        class_label = torch.zeros(batch_size, NUM_CLASSES, device=device)
-        class_label[:, i] = 1
 
         # Forward pass through the model to get raw outputs
         raw_output = model(model_input, class_label=class_label)
