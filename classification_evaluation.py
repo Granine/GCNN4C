@@ -76,17 +76,6 @@ def get_label_multi_region_smart(model, model_input, xy_set, device):
     _, pred = torch.min(all_predictions, dim=0)
 
     return pred
-
-import random
- # Set seeds for reproducibility
-def fix_seeds(seed=42):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
     
 def classifier_smart(model, data_loader, device):
     model.eval()

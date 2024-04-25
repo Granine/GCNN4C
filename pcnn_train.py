@@ -12,12 +12,13 @@ from tqdm import tqdm
 from pprint import pprint
 import argparse
 from pytorch_fid.fid_score import calculate_fid_given_paths
+from utils import fix_seeds
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, mode = 'training'):
-    if mode == 'training':
+    if mode == 'training' or mode == 'finetune':
         model.train()
     else:
         model.eval()
@@ -32,7 +33,7 @@ def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, m
         if (enable_transforms):
             transformed_images = []
             for image in model_input:
-                transformed_image = randomly_transform_image(image)
+                transformed_image = randomly_transform_image(image, train=mode)
                 transformed_images.append(transformed_image)
             model_input = torch.stack(transformed_images)
 
@@ -43,7 +44,7 @@ def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, m
         model_output = model(model_input, class_label=label_one_hot)
         loss = loss_op(model_input, model_output)
         loss_tracker.update(loss.item()/deno)
-        if mode == 'training':
+        if mode == 'training' or mode == 'finetune':
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -99,6 +100,15 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--seed', type=int, default=1,
                         help='Random seed to use')
     
+    # NEW
+    parser.add_argument('-ft', '--finetune', type=int, default=1,
+                        help='A smarter method to finetune the model, any combination of string 0123 for classes to tune')
+    parser.add_argument('-nt', '--norm_technique', type=int, default=1,
+                        help='What technique to use for normalization, bn or wn')
+    parser.add_argument('-md', '--mode', type=int, default=1,
+                        help='resnet mode (cannot use or load different mode models)')
+    
+    
     args = parser.parse_args()
     pprint(args.__dict__)
     check_dir_and_create(args.save_dir)
@@ -142,6 +152,8 @@ if __name__ == '__main__':
     #set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     kwargs = {'num_workers':0, 'pin_memory':True, 'drop_last':True}
+    
+    fix_seeds()
 
     # set data
     if "mnist" in args.dataset:
@@ -190,6 +202,17 @@ if __name__ == '__main__':
                                                    batch_size=args.batch_size, 
                                                    shuffle=True, 
                                                    **kwargs)
+        # if finetune, use finetune loader:
+        if args.finetune:
+            # first parse the class to fine tune on:
+            finetune_classes = [int(i) for i in str(args.finetune)]
+            
+            ft_loader = torch.utils.data.DataLoader(CPEN455Dataset_ft(root_dir=args.data_dir, 
+                                                                  transform=ds_transforms, 
+                                                                  finetune_classes=finetune_classes), 
+                                                   batch_size=args.batch_size, 
+                                                   shuffle=True, 
+                                                   **kwargs)
     else:
         raise Exception('{} dataset not in {mnist, cifar, cpen455}'.format(args.dataset))
     
@@ -211,27 +234,27 @@ if __name__ == '__main__':
     scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=args.lr_decay)
     
     for epoch in tqdm(range(args.max_epochs)):
-        train_or_test(model = model, 
-                      data_loader = train_loader, 
+        if args.finetune:
+            train_or_test(model = model, 
+                      data_loader = ft_loader,
                       optimizer = optimizer, 
                       loss_op = loss_op, 
                       device = device, 
                       args = args, 
                       epoch = epoch, 
-                      mode = 'training')
+                      mode = 'finetune')
+        else:
+            train_or_test(model = model, 
+                        data_loader = train_loader, 
+                        optimizer = optimizer, 
+                        loss_op = loss_op, 
+                        device = device, 
+                        args = args, 
+                        epoch = epoch, 
+                        mode = 'training')
         
         # decrease learning rate
         scheduler.step()
-        """
-        train_or_test(model = model,
-                      data_loader = test_loader,
-                      optimizer = optimizer,
-                      loss_op = loss_op,
-                      device = device,
-                      args = args,
-                      epoch = epoch,
-                      mode = 'test')
-                      """
         
         train_or_test(model = model,
                       data_loader = val_loader,

@@ -27,16 +27,6 @@ def my_sample(model, gen_data_dir, sample_batch_size = 25, obs = (3,32,32), samp
         save_images(sample_t, os.path.join(gen_data_dir), label=label)
     pass
 
-import random
- # Set seeds for reproducibility
-def fix_seeds(seed=42):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
 
 # End of your code
 
