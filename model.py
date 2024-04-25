@@ -63,40 +63,6 @@ class PixelCNNLayer_down(nn.Module):
 
         return u, ul
     
-class ConditionalNorm(nn.Module):
-    def __init__(self, num_features, num_classes, norm='weight_norm'):
-        super(ConditionalNorm, self).__init__()
-        self.num_features = num_features
-        
-        self.embed = nn.Embedding(num_classes, num_features * 2)
-        self.embed.weight.data[:, :num_features].normal_(1, 0.02)  # Initialize gamma at 1
-        self.embed.weight.data[:, num_features:].zero_()  # Initialize beta at 0
-        if norm == 'weight_norm':
-            self.conv = wn(nn.Conv2d(num_features, num_features, 3, padding=1))
-        elif norm == 'batch_norm':
-            self.bn = nn.BatchNorm2d(num_features, affine=False)
-
-    def forward(self, x, y):
-        """ forward pass of ConditionalNorm, it takes x and y as input and apply the normalization
-        
-        Args:
-            x: input feature map
-            y: input class label, one hot encoded
-        """
-        # check if input is one-hot encoded, if so y = torch.argmax(y_onehot, dim=1) 
-        if len(y.size()) == 2:
-            y = torch.argmax(y, dim=1)
-
-        if self.norm == 'weight_norm':
-            out = self.bn(x)
-        elif self.norm == 'batch_norm':
-            out = self.conv(x)
-
-        # need gamma beta to control the impact of labels
-        gamma, beta = self.embed(y).chunk(2, 1)
-        gamma = gamma.view(-1, self.num_features, 1, 1)
-        beta = beta.view(-1, self.num_features, 1, 1)
-        return gamma * out + beta
 
 
 class PixelCNN(nn.Module):
@@ -179,6 +145,7 @@ class PixelCNN(nn.Module):
 
         u_list  = [self.u_init(x)]
         ul_list = [self.ul_init[0](x) + self.ul_init[1](x)]
+
         for i in range(3):
             # resnet block
             # mode = f/b + size (eg: 32, 16, 8) ie "f8"

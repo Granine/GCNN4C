@@ -272,6 +272,7 @@ if __name__ == '__main__':
                 sample_t = rescaling_inv(sample_t)
                 all_samples.append(sample_t)
                 save_images(sample_t, args.sample_dir, label=label)
+                print(".", end="")
             
             # to tensor
             all_samples = torch.cat(all_samples, dim=0)

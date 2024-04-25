@@ -95,6 +95,11 @@ def rotate(image_path, degree):
 
 
 def label_to_onehot_tensor(label_strings:list):
+    """
+    Convert a list of string labels to a one-hot tensor.
+    if embedding is provied it will return the embedding of the label size == embedding
+    only work with A, S, SS mode
+    """
     # input check
     if not isinstance(label_strings, list):
         raise ValueError("Input should be a list of strings.")
@@ -105,13 +110,17 @@ def label_to_onehot_tensor(label_strings:list):
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     label_dict = {'Class0': 0, 'Class1': 1, 'Class2': 2, 'Class3': 3}
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    label_dict = {'Class0': 0, 'Class1': 1, 'Class2': 2, 'Class3': 3}
     label_indices = [ label_dict[label] for label in label_strings]
     label_indices = torch.tensor(label_indices, dtype=torch.int64).to(device)  # Make sure to convert list to tensor
 
     # One-hot encode the indices
-    label_one_hot = torch.nn.functional.one_hot(label_indices, num_classes=4).to(device)
-    label_one_hot = label_one_hot.float()
-    return label_one_hot
+    label_out = torch.nn.functional.one_hot(label_indices, num_classes=4).to(device)
+    label_out = label_out.float()
+        
+    return label_out
 
 def concat_elu(x):
     """ like concatenated ReLU (http://arxiv.org/abs/1603.05201), but then with ELU """

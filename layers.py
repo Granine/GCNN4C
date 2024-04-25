@@ -338,7 +338,7 @@ class gated_resnet_pp(nn.Module):
         # a have size 64 by 80 by 32 by 32
         a = a + a_m.sum(dim=1)
         b = b + b_m.sum(dim=1)
-        c3 = F.tanh(a) * F.sigmoid(b)
+        c3 = a * F.sigmoid(b)
         return og_x + c3
     
 class gated_resnet_o(nn.Module):
@@ -404,6 +404,100 @@ class gated_resnet(nn.Module):
         a, b = torch.chunk(x, 2, dim=1)
         a = a + weighted_a[:, :, None, None]
         b = b + weighted_b[:, :, None, None]
+
+        c3 = a * torch.sigmoid(b)
+        return og_x + c3
+    
+
+class ConditionalBatchNorm(nn.Module):
+    def __init__(self, num_features, num_classes):
+        super(ConditionalBatchNorm, self).__init__()
+        self.num_features = num_features
+        
+        self.embed = nn.Embedding(num_classes, num_features * 2)
+        self.embed.weight.data[:, :num_features].normal_(1, 0.02)  # Initialize gamma at 1
+        self.embed.weight.data[:, num_features:].zero_()  # Initialize beta at 0
+        self.bn = nn.BatchNorm2d(num_features, affine=False)
+
+    def forward(self, x, y):
+        """ forward pass of ConditionalNorm, it takes x and y as input and apply the normalization
+        
+        Args:
+            x: input feature map
+            y: input class label, one hot encoded
+        """
+        # check if input is one-hot encoded, if so y = torch.argmax(y_onehot, dim=1) 
+        if len(y.size()) == 2:
+            y = torch.argmax(y, dim=1)
+
+        out = self.bn(x)
+
+        # need gamma beta to control the impact of labels
+        gamma, beta = self.embed(y).chunk(2, 1)
+        gamma = gamma.view(-1, self.num_features, 1, 1)
+        beta = beta.view(-1, self.num_features, 1, 1)
+        return gamma * out + beta
+    
+class ConditionalWeightNorm(nn.Module):
+    def __init__(self, num_features, num_classes):
+        super(ConditionalWeightNorm, self).__init__()
+        self.num_features = num_features
+        
+        self.embed = nn.Embedding(num_classes, num_features * 2)
+        self.embed.weight.data[:, :num_features].normal_(1, 0.02)  # Initialize gamma at 1
+        self.embed.weight.data[:, num_features:].zero_()  # Initialize beta at 0
+        self.conv = wn(nn.Conv2d(num_features, num_features, 3, padding=1))
+
+    def forward(self, x, y):
+        """ forward pass of ConditionalNorm, it takes x and y as input and apply the normalization
+        
+        Args:
+            x: input feature map
+            y: input class label, one hot encoded
+        """
+        # check if input is one-hot encoded, if so y = torch.argmax(y_onehot, dim=1) 
+        if len(y.size()) == 2:
+            y = torch.argmax(y, dim=1)
+
+        out = self.conv(x)
+
+        # need gamma beta to control the impact of labels
+        gamma, beta = self.embed(y).chunk(2, 1)
+        gamma = gamma.view(-1, self.num_features, 1, 1)
+        beta = beta.view(-1, self.num_features, 1, 1)
+        return gamma * out + beta
+    
+class gated_resnet_wn(nn.Module):
+    def __init__(self, num_filters, conv_op, nonlinearity=concat_elu, skip_connection=0, norm='weight_norm'):
+        super(gated_resnet, self).__init__()
+        self.skip_connection = skip_connection
+        self.nonlinearity = nonlinearity
+        self.conv_input = conv_op(2 * num_filters, num_filters) # cuz of concat elu
+
+        if skip_connection != 0 :
+            self.nin_skip = nin(2 * skip_connection * num_filters, num_filters)
+
+        self.dropout = nn.Dropout2d(0.5)
+        self.conv_out = conv_op(2 * num_filters, 2 * num_filters)
+        self.norm_a = ConditionalWeightNorm(num_filters, 4)
+        self.norm_b = ConditionalWeightNorm(num_filters, 4)
+
+
+    def forward(self, og_x, a=None, label=None, mode=None):  
+        if label == None or label.size(1) != 4:
+            raise Exception("Label must be of size 4")
+        x = self.conv_input(self.nonlinearity(og_x))
+        if a is not None :
+            x += self.nin_skip(self.nonlinearity(a))
+        x = self.nonlinearity(x)
+        x = self.dropout(x)
+        x = self.conv_out(x)
+
+        # if apply to x, use x = x + torch.matmul(label, self.weight_a)
+
+        a, b = torch.chunk(x, 2, dim=1)
+        a = self.norm_a(a, label)
+        b = self.norm_b(b, label)
 
         c3 = a * torch.sigmoid(b)
         return og_x + c3

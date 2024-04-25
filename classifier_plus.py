@@ -306,10 +306,8 @@ if __name__ == '__main__':
     fix_seeds()
     run_mode = "base"
     parms = {"nr_resnet": 1, "nr_filters": 128, "input_channels": 3, "nr_logistic_mix": 100}
-    single_path = "models/conditional_pixelcnn.pth"
-
-
-
+    single_path = r"models/conditional_pixelcnn.pth"
+    strict = False
 
 
     if run_mode == "all":
@@ -326,7 +324,7 @@ if __name__ == '__main__':
                 model = model.to(device)
                 #Attention: the path of the model is fixed to 'models/conditional_pixelcnn.pth'
                 #You should save your model to this path
-                model.load_state_dict(torch.load(model_path_full))
+                model.load_state_dict(torch.load(model_path_full), strict=strict)
                 model.eval()
                 print('model parameters loaded')
                 acc = classifier(model = model, data_loader = dataloader, device = device)
@@ -344,11 +342,10 @@ if __name__ == '__main__':
     elif run_mode == "test":
         base = 'models/'
         model_list = [
-        'pcnn_cpen455_load_model_374.pth',
-        'pcnn_cpen455_load_model_224.pth',
-        'pcnn_cpen455_load_model_124.pth',
-        'pcnn_cpen455_load_model_399.pth'
-            ]
+        'conditional_pixelcnn.pth',
+        'pcnn_cpen455_load_model_134.pth',
+        'pcnn_cpen455_load_model_149.pth'
+        ]
         dataloader_t = torch.utils.data.DataLoader(CPEN455Dataset_path(root_dir=args.data_dir, 
                                                             mode = "test", 
                                                             transform=ds_transforms), 
@@ -374,7 +371,7 @@ if __name__ == '__main__':
             model = model.to(device)
             #Attention: the path of the model is fixed to 'models/conditional_pixelcnn.pth'
             #You should save your model to this path
-            model.load_state_dict(torch.load(base + model_path_full))
+            model.load_state_dict(torch.load(base + model_path_full), strict=strict)
             model.eval()
             model_name = os.path.basename(model_path_full)
             # strip pcnn_cpen455_from_, if it exist
@@ -395,7 +392,7 @@ if __name__ == '__main__':
         model = model.to(device)
         #Attention: the path of the model is fixed to 'models/conditional_pixelcnn.pth'
         #You should save your model to this path
-        model.load_state_dict(torch.load(single_path))
+        model.load_state_dict(torch.load(single_path), strict=strict)
         model.eval()
         print('model parameters loaded')
         

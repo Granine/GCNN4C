@@ -43,7 +43,7 @@ if __name__ == "__main__":
     fix_seeds()
     model_path = r'.\models/conditional_pixelcnn.pth'
     #Load your model and generate images in the gen_data_dir
-    model = PixelCNN(nr_resnet=1, nr_filters=64, input_channels=3, nr_logistic_mix=100)
+    model = PixelCNN(nr_resnet=1, nr_filters=128, input_channels=3, nr_logistic_mix=100)
     model = model.to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model = model.eval()
