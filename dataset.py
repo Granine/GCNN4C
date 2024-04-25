@@ -91,8 +91,13 @@ class CPEN455Dataset_ft(Dataset):
         csv_path2 = os.path.join(ROOT_DIR, "validation" + '.csv')
         df2 = pd.read_csv(csv_path2, header=None, names=['path', 'label'])
 
-        desired_classes = []  #Fill this with the two classes which your model confuses
-        rest_classes = []     #Fill this with rest of the classes
+        possibel_classes = [0, 1, 2, 3]
+        desired_classes = classes  #Fill this with the two classes which your model confuses
+        rest_classes = [item for item in possibel_classes if item not in desired_classes]
+
+        # # convert int to string with mydict
+        # desired_classes = [my_bidict.inverse[item] for item in desired_classes]
+        # rest_classes = [my_bidict.inverse[item] for item in rest_classes]
 
         # Filter desired classes and rest classes from df
         subset_df = df[df['label'].isin(desired_classes)]
@@ -102,15 +107,15 @@ class CPEN455Dataset_ft(Dataset):
         rest_val_df = df2[df2['label'].isin(rest_classes)]
 
         # Get 90% of total from desired classes and 10% from rest
-        desired_num = round(train_frac * 0.9 * (min(len(subset_df), len(desired_val_df))))
-        rest_num = round(train_frac * 0.1 * (min(len(rest_df), len(rest_val_df))))
+        desired_num = round(train_frac * 0.8 * len(subset_df))
+        rest_num = round(train_frac * 0.2 * len(rest_val_df))
 
         samples_train = random.sample(list(subset_df.itertuples(index=False, name=None)), desired_num)
         samples_train.extend(random.sample(list(rest_df.itertuples(index=False, name=None)), rest_num))
 
         # Repeat the process for validation data
-        desired_num_val = round(val_frac * 0.9 * (min(len(subset_df), len(desired_val_df))))
-        rest_num_val = round(val_frac * 0.1 * (min(len(rest_df), len(rest_val_df))))
+        desired_num_val = round(len(desired_val_df))
+        rest_num_val = round(0.5 * len(rest_val_df))
 
         samples_val = random.sample(list(desired_val_df.itertuples(index=False, name=None)), desired_num_val)
         samples_val.extend(random.sample(list(rest_val_df.itertuples(index=False, name=None)), rest_num_val))
@@ -119,10 +124,10 @@ class CPEN455Dataset_ft(Dataset):
         self.samples2 = [(os.path.join(ROOT_DIR, path), label) for path, label in samples_val]
         
     def __len__(self):
-        return len(self.samples + self.samples2)
+        return len(self.samples2)
 
     def __getitem__(self, idx):
-        img_path, category = self.samples[idx]
+        img_path, category = self.samples2[idx]
         if category in my_bidict.values():
             category_name = my_bidict.inverse[category]
         else:
@@ -137,7 +142,7 @@ class CPEN455Dataset_ft(Dataset):
         return image, category_name
     
     def get_all_images(self, label):
-        return [img for img, cat in self.samples if cat == label]
+        return [img for img, cat in self.samples2 if cat == label]
 
 def show_images(images, categories, mode:str):
         fig, axs = plt.subplots(1, len(images), figsize=(15, 5))

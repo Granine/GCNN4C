@@ -19,51 +19,6 @@ from classification_evaluation import fix_seeds
 
 NUM_CLASSES = len(my_bidict)
 
-# Write your code here
-# And get the predicted label, which is a tensor of shape (batch_size,)
-# Begin of your code
-def get_label_single(model, model_input, device):
-    batch_size = model_input.size(0)
-    all_predictions = torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
-    
-    for j in range(batch_size):
-        single_input = model_input[j].unsqueeze(0)  # Get a single image and maintain it as a batch of size 1
-        # print size
-        print(single_input.size())
-        for i in range(NUM_CLASSES):
-            # Convert label to tensor representation for a single example
-            class_label = torch.zeros(1, NUM_CLASSES, device=device)  # Adjusted for batch size of 1
-            class_label[:, i] = 1
-
-            # Forward pass through the model to get raw outputs for a single input
-            raw_output = model(single_input, class_label=class_label)
-
-            # Convert raw logistics into probabilities or logits
-            # mean pooling over logistic parameters for a single input
-            all_predictions[i, j] = discretized_mix_logistic_loss(single_input, raw_output, train=False)
-    
-    # Compute probabilities using softmax, and find predictions
-    _, pred = torch.min(all_predictions, dim=0)  # No change required here
-
-    # Additional check for prediction correctness
-    pred_2 = torch.argmin(torch.softmax(all_predictions, dim=0), dim=0)
-
-    logit_file = 'logits.npy'
-    if os.path.exists(logit_file):
-        logits = np.load(logit_file)
-        # Append new logits along the second dimension (i.e., for each class across batches)
-        updated_logits = np.append(logits, all_predictions.detach().cpu().numpy(), axis=1)
-        np.save(logit_file, updated_logits)
-    else:
-        # Save the logits for the first time.
-        np.save(logit_file, all_predictions.detach().cpu().numpy())
-
-    print('Error in prediction')
-    print(pred)
-    print(pred_2)
-    
-    return pred
-
 def get_label(model, model_input, device):
     batch_size = model_input.size(0)
     all_predictions =  torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
@@ -142,7 +97,8 @@ class CPEN455Dataset_path(Dataset):
         return image, category_name, image_path
 
 import torchvision.transforms as transforms
-def record(model, data_loader, device, result_file_path):
+
+def record(model, data_loader, device, result_file_path, mode="basic"):
     
     with open(result_file_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
@@ -154,7 +110,10 @@ def record(model, data_loader, device, result_file_path):
             filenames = [os.path.basename(f) for f in filename]
             
             model_input = model_input.to(device)
-            predictions = get_label(model, model_input, device).cpu().numpy()
+            if mode == "smart":
+                predictions = get_label_multi_region_smart(model, model_input, device).cpu().numpy()
+            else:
+                predictions = get_label(model, model_input, device).cpu().numpy()
             print(predictions)
             
             for filename, prediction in zip(filenames, predictions):
@@ -208,11 +167,11 @@ if __name__ == '__main__':
     fix_seeds()
     base = 'models/'
     model_list = [
-    'pcnn_cpen455_from_scratch_499.pth',
-    'pcnn_cpen455_from_scratch_474.pth',
+    'pcnn_cpen455_from_scratch_299.pth',
     'pcnn_cpen455_from_scratch_324.pth',
     'pcnn_cpen455_from_scratch_399.pth',
-    'pcnn_cpen455_from_scratch_424.pth'
+    'pcnn_cpen455_from_scratch_449.pth',
+    'pcnn_cpen455_from_scratch_474.pth'
 ]
     for model_path_full in model_list:
 

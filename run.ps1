@@ -7,7 +7,7 @@ python pcnn_train.py `
 --nr_resnet 1 `
 --nr_filters 40 `
 --nr_logistic_mix 10 `
---lr_decay 0.99995 `
+--lr_decay 0.997 `
 --max_epochs 500 `
 --en_wandb True `
 --seed 2026

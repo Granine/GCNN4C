@@ -79,8 +79,6 @@ if __name__ == '__main__':
                         help='Restore training from previous model checkpoint?')
     parser.add_argument('--obs', type=tuple, default=(3, 32, 32),
                         help='Observation shape')
-    
-    # model
     parser.add_argument('-q', '--nr_resnet', type=int, default=1,
                         help='Number of residual blocks per stage of the model')
     parser.add_argument('-n', '--nr_filters', type=int, default=160,
@@ -99,14 +97,10 @@ if __name__ == '__main__':
                         default=5000, help='How many epochs to run in total?')
     parser.add_argument('-s', '--seed', type=int, default=1,
                         help='Random seed to use')
-    
-    # NEW
-    parser.add_argument('-ft', '--finetune', type=int, default=1,
+    parser.add_argument('-ft', '--finetune', type=str, default="",
                         help='A smarter method to finetune the model, any combination of string 0123 for classes to tune')
-    parser.add_argument('-nt', '--norm_technique', type=int, default=1,
+    parser.add_argument('-nt', '--norm_technique', type=str, default="bn",
                         help='What technique to use for normalization, bn or wn')
-    parser.add_argument('-md', '--mode', type=int, default=1,
-                        help='resnet mode (cannot use or load different mode models)')
     
     
     args = parser.parse_args()
@@ -209,7 +203,7 @@ if __name__ == '__main__':
             
             ft_loader = torch.utils.data.DataLoader(CPEN455Dataset_ft(root_dir=args.data_dir, 
                                                                   transform=ds_transforms, 
-                                                                  finetune_classes=finetune_classes), 
+                                                                  classes=finetune_classes), 
                                                    batch_size=args.batch_size, 
                                                    shuffle=True, 
                                                    **kwargs)

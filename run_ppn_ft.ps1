@@ -1,0 +1,16 @@
+python pcnn_train.py `
+--batch_size 32 `
+--sample_batch_size 8 `
+--sampling_interval 25 `
+--save_interval 25 `
+--dataset cpen455 `
+--nr_resnet 1 `
+--nr_filters 128 `
+--nr_logistic_mix 100 `
+--lr_decay 0.997 `
+--max_epochs 501 `
+--en_wandb True `
+--seed 4399 `
+--finetune "13" `
+--lr 0.0001 `
+--load_params "models\pcnn_cpen455_from_scratch_399.pth"

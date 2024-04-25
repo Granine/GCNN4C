@@ -40,57 +40,6 @@ def get_label(model, model_input, device):
     # pred_2 = torch.argmin(torch.softmax(all_predictions, dim=0), dim=0)
     return pred
 
-# section debugged and fixed by GPT
-def get_label_multi_region_smart(model, model_input, xy_set, device):
-    batch_size = model_input.size(0)
-    all_predictions = torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
-
-    # Iterate over each region specified by the xy tuple
-    for x, y in xy_set:
-        # Masking the image to consider only pixels up to (x, y)
-        mask = torch.zeros_like(model_input)
-        mask[:, :, :x, :y+1] = 1  # Include all rows up to x, and all columns up to y
-
-        # Apply mask; portions of image beyond (x, y) are zeroed out
-        masked_input = model_input * mask
-
-        region_predictions = torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
-        for i in range(NUM_CLASSES):
-            # Convert label to tensor representation
-            class_label = label_to_onehot_tensor([my_bidict.inverse[i]]*batch_size)
-
-            # Forward pass through the model to get raw outputs
-            raw_output = model(masked_input, class_label=class_label)
-
-            # Evaluate loss only on the visible part of the image
-            # To make sure the mask applies properly, we use the same mask on the output
-            masked_output = raw_output * mask
-
-            # Calculate logistic loss for masked region
-            region_predictions[i] = discretized_mix_logistic_loss(masked_input, masked_output, train=False)
-
-        # Accumulate predictions across all specified regions by averaging logits
-        all_predictions += region_predictions / len(xy_set)
-
-    # Compute softmax probabilities to find classes and then find the minimum predicted class label
-    _, pred = torch.min(all_predictions, dim=0)
-
-    return pred
-    
-def classifier_smart(model, data_loader, device):
-    model.eval()
-    acc_tracker = ratio_tracker()  # Assuming 'ratio_tracker' is defined elsewhere to track accuracy
-    for batch_idx, (model_input, categories) in enumerate(tqdm(data_loader)):
-        model_input = model_input.to(device)
-        original_label = torch.tensor([my_bidict[item.item()] for item in categories], dtype=torch.int64, device=device)
-        
-        xy_set = [(15, 31), (20, 31), (25, 31), (31, 31), (31, 25)]
-        answer = get_label_multi_region_smart(model, model_input, xy_set, device)
-        correct_num = torch.sum(answer == original_label).item()
-        acc_tracker.update(correct_num, model_input.shape[0])
-    
-    return acc_tracker.get_ratio()
-
 # End of your code
 
 def classifier(model, data_loader, device):
@@ -102,7 +51,6 @@ def classifier(model, data_loader, device):
         original_label = [my_bidict[item] for item in categories]
         original_label = torch.tensor(original_label, dtype=torch.int64).to(device)
         answer = get_label(model, model_input, device)
-        print(answer)
         correct_num = torch.sum(answer == original_label)
         acc_tracker.update(correct_num.item(), model_input.shape[0])
     
@@ -139,7 +87,7 @@ if __name__ == '__main__':
    
     fix_seeds()
 
-    model = PixelCNN(nr_resnet=1, nr_filters=40, input_channels=3, nr_logistic_mix=100)
+    model = PixelCNN(nr_resnet=1, nr_filters=128, input_channels=3, nr_logistic_mix=100)
 
     #End of your code
     
@@ -151,7 +99,5 @@ if __name__ == '__main__':
     print('model parameters loaded')
     acc = classifier(model = model, data_loader = dataloader, device = device)
     print(f"Accuracy: {acc}")
-    acc_2 = classifier_smart(model = model, data_loader = dataloader, device = device)
-    print(f"Accuracy_half: {acc_2}")
         
         
