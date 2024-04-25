@@ -53,6 +53,8 @@ def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, m
         wandb.log({mode + "-Average-BPD" : loss_tracker.get_mean()})
         wandb.log({mode + "-epoch": epoch})
 
+    return loss_tracker.get_mean()
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
@@ -201,12 +203,12 @@ if __name__ == '__main__':
             # first parse the class to fine tune on:
             finetune_classes = [int(i) for i in str(args.finetune)]
             
-            ft_loader = torch.utils.data.DataLoader(CPEN455Dataset_ft(root_dir=args.data_dir, 
-                                                                  transform=ds_transforms, 
-                                                                  classes=finetune_classes), 
-                                                   batch_size=args.batch_size, 
-                                                   shuffle=True, 
-                                                   **kwargs)
+            ft_loader = torch.utils.data.DataLoader(CPEN455Dataset_ft(root_dir=args.data_dir,
+                                                        transform=ds_transforms,
+                                                        classes=finetune_classes), 
+                                                    batch_size=args.batch_size, 
+                                                    shuffle=True, 
+                                                    **kwargs)
     else:
         raise Exception('{} dataset not in {mnist, cifar, cpen455}'.format(args.dataset))
     
@@ -226,10 +228,10 @@ if __name__ == '__main__':
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=args.lr_decay)
-    
+    bpd=500
     for epoch in tqdm(range(args.max_epochs)):
         if args.finetune:
-            train_or_test(model = model, 
+            bpd= train_or_test(model = model, 
                       data_loader = ft_loader,
                       optimizer = optimizer, 
                       loss_op = loss_op, 
@@ -238,7 +240,7 @@ if __name__ == '__main__':
                       epoch = epoch, 
                       mode = 'finetune')
         else:
-            train_or_test(model = model, 
+            bpd=train_or_test(model = model, 
                         data_loader = train_loader, 
                         optimizer = optimizer, 
                         loss_op = loss_op, 
@@ -260,7 +262,8 @@ if __name__ == '__main__':
                       mode = 'val')
         
         if epoch % args.sampling_interval == 0:
-            print('\n......sampling......')
+            print("\n"+str(bpd))
+            print('......sampling......')
             # new torch
             all_samples = []
             for label in my_bidict.keys():

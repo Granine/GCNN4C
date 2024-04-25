@@ -37,7 +37,7 @@ def randomly_transform_image(image_tensor, train="training"):
         transform_ops = transforms.Compose([
             transforms.RandomHorizontalFlip(),  # Randomly flip the images horizontally
             transforms.RandomRotation(degrees=(-10, 10)),  # Random rotation between -10 and +10 degrees
-            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1), # Randomly changing brightness, contrast, saturation, and hue
+            #transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1), # Randomly changing brightness, contrast, saturation, and hue
             transforms.RandomResizedCrop(32, scale=(0.8, 1.0), ratio=(0.9, 1.1)), # Random cropping and resizing back to original dimensions
         ])
     

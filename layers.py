@@ -274,7 +274,7 @@ skip connection parameter : 0 = no skip connection
                             1 = skip connection where skip input size === input size
                             2 = skip connection where skip input size === 2 * input size
 '''
-class gated_resnet_i(nn.Module):
+class gated_resnet_pp(nn.Module):
     def __init__(self, num_filters, conv_op, nonlinearity=concat_elu, skip_connection=0):
         super(gated_resnet, self).__init__()
         self.skip_connection = skip_connection
@@ -288,9 +288,9 @@ class gated_resnet_i(nn.Module):
         # dropout chance is 0.5
         self.dropout = nn.Dropout2d(0.5)
         self.conv_out = conv_op(2 * num_filters, 2 * num_filters)
-        self.a_1 = nn.Parameter(torch.empty(4, num_filters, 32, 32)).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        self.a_1 = nn.Parameter(torch.empty(4, num_filters, 32, 32))
         nn.init.kaiming_uniform_(self.a_1, nonlinearity='relu')
-        self.b_1 = nn.Parameter(torch.empty(4, num_filters, 32, 32)).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        self.b_1 = nn.Parameter(torch.empty(4, num_filters, 32, 32))
         nn.init.kaiming_uniform_(self.b_1, nonlinearity='relu')
 
 
@@ -319,6 +319,7 @@ class gated_resnet_i(nn.Module):
 
             # Apply average pooling to downsample
             # Kernel size and stride both are the downsampling factor
+            # same as having 3 function, each for size 32, 16, 8, but under current architecturee hard to implement
             a_m = F.avg_pool2d(a_m, kernel_size=factor, stride=factor, count_include_pad=False)
             b_m = F.avg_pool2d(b_m, kernel_size=factor, stride=factor, count_include_pad=False)
 
@@ -327,18 +328,17 @@ class gated_resnet_i(nn.Module):
         a_m = a_m.unsqueeze(0) # Now a_m is [1, 4, 160, 32, 32]
         b_m = b_m.unsqueeze(0) # Now b_m is [1, 4, 160, 32, 32]
         
+        # Now we expand it to match the dimensions of a_m (and b_m) 
         a_m = a_m.expand(a.size(0), -1, -1, -1, -1)
         b_m = b_m.expand(b.size(0), -1, -1, -1, -1)
 
         a_m = label.view(og_x.size(0), 4, 1, 1, 1) * a_m
         b_m = label.view(og_x.size(0), 4, 1, 1, 1) * b_m
-
-        # Now we expand it to match the dimensions of a_m (and b_m) 
         
         # a have size 64 by 80 by 32 by 32
         a = a + a_m.sum(dim=1)
         b = b + b_m.sum(dim=1)
-        c3 = a * F.sigmoid(b)
+        c3 = F.tanh(a) * F.sigmoid(b)
         return og_x + c3
     
 class gated_resnet_o(nn.Module):
@@ -408,7 +408,4 @@ class gated_resnet(nn.Module):
         c3 = a * torch.sigmoid(b)
         return og_x + c3
 
-# 4* filter size 2
-# a = matri
-# x += matmul(a) = [:, :, None, None ]
-# 
+# todo BN, embedd, preprocecss, sectioned output, local test, diagram

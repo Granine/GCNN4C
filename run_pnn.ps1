@@ -10,4 +10,7 @@ python pcnn_train.py `
 --lr_decay 0.997 `
 --max_epochs 501 `
 --en_wandb True `
---seed 4399
+--seed 4399 `
+--finetune "13" `
+--lr 0.0001 `
+--load_params "models\pcnn_cpen455_from_scratch_399.pth"
