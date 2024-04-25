@@ -78,10 +78,6 @@ def get_label_lg(model, model_input, device, logit_file):
         # Save the logits for the first time.
         np.save(logit_file, all_predictions.detach().cpu().numpy())
 
-    if not torch.equal(pred, pred_2):
-        print('Error in prediction')
-        print(pred)
-        print(pred_2)
     return pred
 
 class CPEN455Dataset_path(Dataset):
@@ -186,7 +182,6 @@ def classifier(model, data_loader, device):
         answer = get_label(model, model_input, device)
         print(answer)
         correct_num = torch.sum(answer == original_label)
-        record_wrong(item, answer, original_label)
         acc_tracker.update(correct_num.item(), model_input.shape[0])
     
     return acc_tracker.get_ratio()
@@ -309,7 +304,7 @@ if __name__ == '__main__':
     #Begin of your code
    
     fix_seeds()
-    run_mode = "test"
+    run_mode = "all"
     parms = {"nr_resnet": 1, "nr_filters": 128, "input_channels": 3, "nr_logistic_mix": 100}
     if run_mode == "all":
         
@@ -328,7 +323,7 @@ if __name__ == '__main__':
                 model.load_state_dict(torch.load(model_path_full))
                 model.eval()
                 print('model parameters loaded')
-                acc = classifier(model = model, data_loader = dataloader, device = device, record_wrong=False)
+                acc = classifier(model = model, data_loader = dataloader, device = device)
                 print(f"Accuracy: {acc}")
                 eval_result[file] = acc
                 # clean

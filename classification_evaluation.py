@@ -64,7 +64,7 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--data_dir', type=str,
                         default='data', help='Location for the dataset')
     parser.add_argument('-b', '--batch_size', type=int,
-                        default=8, help='Batch size for inference')
+                        default=32, help='Batch size for inference')
     parser.add_argument('-m', '--mode', type=str,
                         default='validation', help='Mode for the dataset')
     

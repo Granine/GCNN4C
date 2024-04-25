@@ -167,15 +167,15 @@ if __name__ == '__main__':
     fix_seeds()
     base = 'models/'
     model_list = [
-    'pcnn_cpen455_from_scratch_299.pth',
-    'pcnn_cpen455_from_scratch_324.pth',
-    'pcnn_cpen455_from_scratch_399.pth',
-    'pcnn_cpen455_from_scratch_449.pth',
-    'pcnn_cpen455_from_scratch_474.pth'
+    'pcnn_cpen455_load_model_274.pth',
+    'pcnn_cpen455_load_model_149.pth',
+    'pcnn_cpen455_load_model_224.pth',
+    'pcnn_cpen455_load_model_49.pth',
+    'pcnn_cpen455_from_scratch_274.pth'
 ]
     for model_path_full in model_list:
 
-        model = PixelCNN(nr_resnet=1, nr_filters=128, input_channels=3, nr_logistic_mix=100)
+        model = PixelCNN(nr_resnet=1, nr_filters=64, input_channels=3, nr_logistic_mix=100)
 
         #End of your code
 
