@@ -9,9 +9,10 @@ import os
 from PIL import Image, ImageOps
 from torchvision import transforms
 
-def randomly_transform_image(image_tensor):
+def randomly_transform_image(image_tensor, train="training"):
     """
-    Apply random horizontal flip and random rotation within a specified range to an image tensor.
+    Apply random horizontal flip, random rotation within a specified range, 
+    color jitter, and random cropping to an image tensor of fixed size.
     
     Args:
     image_tensor (Tensor): A single image tensor of shape (C, H, W)
@@ -19,12 +20,26 @@ def randomly_transform_image(image_tensor):
     Returns:
     Tensor: Transformed image tensor.
     """
-    transform_ops = transforms.Compose([
-        transforms.RandomHorizontalFlip(),  # Randomly flip the images
-        transforms.RandomRotation(degrees=(-10, 10)),  # Random rotation between -10 and +10 degrees
-    ])
+    if train == "finetune":
+        transform_ops = transforms.Compose([
+            transforms.RandomHorizontalFlip(),  # Randomly flip the images horizontally
+            transforms.RandomRotation(degrees=(-10, 10)),  # Random rotation between -10 and +10 degrees
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1), # Randomly changing brightness, contrast, saturation, and hue
+            transforms.RandomResizedCrop(32, scale=(0.8, 1.0), ratio=(0.9, 1.1)), # Random cropping and resizing back to original dimensions
+        ])
+    
+    else:
+        transform_ops = transforms.Compose([
+            transforms.RandomHorizontalFlip(),  # Randomly flip the images horizontally
+            transforms.RandomRotation(degrees=(-10, 10)),  # Random rotation between -10 and +10 degrees
+        ])
     
     return transform_ops(image_tensor)
+
+# Example usage
+# Assuming `example_image_tensor` is a PyTorch Tensor of shape (C, H, W)
+# You would use the function like so:
+# transformed_image = randomly_transform_image(example_image_tensor)
 
 
 def flip(image_path):
