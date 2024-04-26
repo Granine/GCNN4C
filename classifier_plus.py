@@ -72,7 +72,8 @@ def get_label_lg(model, model_input, device, logit_file):
     if os.path.exists(logit_file):
         logits = np.load(logit_file)
         # Append new logits along the second dimension (i.e., for each class across batches)
-        updated_logits = np.append(logits, all_predictions.detach().cpu().numpy(), axis=1)
+        # logit shape should be sample * class, not class* sample, so we transpose
+        updated_logits = np.append(logits, all_predictions.detach().cpu().numpy().T, axis=0)
         np.save(logit_file, updated_logits)
     else:
         # Save the logits for the first time.
@@ -207,22 +208,24 @@ def classifier_save(model, data_loader, device):
 def get_label_multi_region_smart(model, model_input, xy_set, device, zoom=False):
     batch_size = model_input.size(0)
     all_predictions = torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
-    all_predictions_argmax = torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
 
     # Iterate over each region specified by the xy tuple
     for x, y in xy_set:
-        # Masking the image to consider only pixels up to (x, y)
-        mask = torch.zeros_like(model_input)
-        mask[:, :, :x, :y+1] = 1  # Include all rows up to x, and all columns up to y
-        # output channel is 1000, apply mask to every channel
+        if x == -1 and y == -1:
+            # flip image
+            model_input = torch.flip(model_input, [3])
+        else:
+            # Masking the image to consider only pixels up to (x, y)
+            mask = torch.zeros_like(model_input)
+            mask[:, :, :x, :y+1] = 1  # Include all rows up to x, and all columns up to y
+            # output channel is 1000, apply mask to every channel
 
-        # create empty tensor with [modelinput.size(0), 1000, 32, 32]
-        mask_out_t = torch.zeros((model_input.size(0), 1000, 32, 32), device=device)
-        mask_out_t[:, :, :x, :y+1] = 1
+            # create empty tensor with [modelinput.size(0), 1000, 32, 32]
+            mask_out_t = torch.zeros((model_input.size(0), 1000, 32, 32), device=device)
+            mask_out_t[:, :, :x, :y+1] = 1
 
-
-        # Apply mask; portions of image beyond (x, y) are zeroed out
-        masked_input = model_input * mask
+            # Apply mask; portions of image beyond (x, y) are zeroed out
+            masked_input = model_input * mask
         if zoom == True:
             # zoom into the image, ignore all mask area, resize to 32x32
             # input should have 3 channels
@@ -230,7 +233,6 @@ def get_label_multi_region_smart(model, model_input, xy_set, device, zoom=False)
             masked_input = torch.nn.functional.interpolate(masked_input, size=(32, 32), mode='linear')
             
         region_predictions = torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
-        region_predictions_argmax = torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
         for i in range(NUM_CLASSES):
             # Convert label to tensor representation
             class_label = label_to_onehot_tensor([my_bidict.inverse[i]]*batch_size)
@@ -241,20 +243,23 @@ def get_label_multi_region_smart(model, model_input, xy_set, device, zoom=False)
             # Evaluate loss only on the visible part of the image
             # To make sure the mask applies properly, we use the same mask on the output
             
-            # apply mask, both should have same size
-            masked_output = raw_output * mask_out_t
+            if x == -1 and y == -1:
+                # flip image
+                # raw_output = torch.flip(raw_output, [3])
+                pass
+            else: 
+                # apply mask, both should have same size
+                masked_output = raw_output * mask_out_t
 
             # Calculate logistic loss for masked region
             region_predictions[i] = discretized_mix_logistic_loss(masked_input, masked_output, train=False)
-            region_predictions_argmax[i] = masked_output
-        # Accumulate predictions across all specified regions by averaging logits
+        # Accumulate predictions across all specified regions by averaging logits @ 453
         all_predictions += region_predictions / len(xy_set)
-        all_predictions_argmax += region_predictions_argmax / len(xy_set)
 
     # Compute softmax probabilities to find classes and then find the minimum predicted class label
     _, pred = torch.min(all_predictions, dim=0)
     pred_2 = torch.argmin(torch.softmax(all_predictions, dim=0), dim=0)
-    pred_3 = torch.argmax(torch.softmax(all_predictions_argmax, dim=0), dim=0)
+    pred_3 = torch.argmin(all_predictions, dim=0)
     if not torch.equal(pred, pred_2) or not torch.equal(pred, pred_3):
         print('Error in prediction')
         print(pred)
@@ -274,7 +279,7 @@ def classifier_smart(model, data_loader, device):
         original_label = torch.tensor([my_bidict[item] for item in categories], dtype=torch.int64, device=device)
         
         xy_set = [(23, 32), (28, 32), (32, 32), (32, 28), (32, 23)]
-        xy_set = [(32, 32)]
+        xy_set = [(32, 32), (-1, -1)]
         answer, answer_2, answer_3 = get_label_multi_region_smart(model, model_input, xy_set, device)
         correct_num = torch.sum(answer == original_label).item()
         correct_num_2 = torch.sum(answer_2 == original_label).item()
@@ -285,12 +290,6 @@ def classifier_smart(model, data_loader, device):
         
         ratio = (acc_tracker.get_ratio(), acc_tracker_2.get_ratio(), acc_tracker_3.get_ratio())
         # record on best result's answer (highest ratio)
-        if ratio.index(max(ratio)) == 0:
-            record_wrong(item, answer, original_label)
-        elif ratio.index(max(ratio)) == 1:
-            record_wrong(item, answer_2, original_label)
-        else:
-            record_wrong(item, answer_3, original_label)
     return ratio
         
 
@@ -323,7 +322,7 @@ if __name__ == '__main__':
     #Begin of your code
    
     fix_seeds()
-    run_mode = "base"
+    run_mode = "smart"
     parms = {"nr_resnet": 1, "nr_filters": 128, "input_channels": 3, "nr_logistic_mix": 100}
     single_path = r"models/conditional_pixelcnn.pth"
     strict = False
@@ -419,12 +418,6 @@ if __name__ == '__main__':
         print(f"Accuracy: {acc}")
 
     elif run_mode == "smart":
-        dataloader_t = torch.utils.data.DataLoader(CPEN455Dataset_path(root_dir=args.data_dir, 
-                                                            mode = "validation", 
-                                                            transform=ds_transforms), 
-                                             batch_size=args.batch_size, 
-                                             shuffle=True, 
-                                             **kwargs)
         model = PixelCNN(**parms)
         model = model.to(device)
         #Attention: the path of the model is fixed to 'models/conditional_pixelcnn.pth'
@@ -433,7 +426,7 @@ if __name__ == '__main__':
         model.eval()
         print('model parameters loaded')
         
-        acc, acc_2, acc3 = classifier_smart(model = model, data_loader = dataloader_t, device = device)
+        acc, acc_2, acc3 = classifier_smart(model = model, data_loader = dataloader, device = device)
         print(f"Accuracy: {acc}% (min), {acc_2}% (argmin), {acc3}% (argmax)")
         
         
