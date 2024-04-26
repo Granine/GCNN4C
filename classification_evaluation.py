@@ -13,13 +13,12 @@ from dataset import *
 from tqdm import tqdm
 from pprint import pprint
 import argparse
-import torch
-
 NUM_CLASSES = len(my_bidict)
 
 # Write your code here
 # And get the predicted label, which is a tensor of shape (batch_size,)
 # Begin of your code
+import torch
 
 def get_label(model, model_input, device):
     batch_size = model_input.size(0)
@@ -58,7 +57,6 @@ def classifier(model, data_loader, device):
         
 
 if __name__ == '__main__':
-
     parser = argparse.ArgumentParser()
     
     parser.add_argument('-i', '--data_dir', type=str,

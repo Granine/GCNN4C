@@ -30,7 +30,6 @@ def my_sample(model, gen_data_dir, sample_batch_size = 25, obs = (3,32,32), samp
 
 # End of your code
 
-
 if __name__ == "__main__":
     ref_data_dir = "data/test"
     gen_data_dir = "samples"
