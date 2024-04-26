@@ -13,6 +13,13 @@
 \usepackage{graphicx}
 \usepackage{url}
 \usepackage{float}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{cleveref}
 
 
 \makeatletter
@@ -65,15 +72,14 @@
 
     \subsubsection{Conditional Model:}
     \begin{itemize}
-        \item The model is conditioned on the class label of the image, which is incorporated as an additional input. 
-        \item Among the \texttt{gated\_resnet} function, we introduced two new weights layer, each of which is multiped with input label. The result is added to the resulting \texttt{a}, \texttt{b} parameters after the convolution operations. We used the same weights through all layers of the model. Pooling when necessary to match the dimensions of the input and output with the expectation that pixels would be influenced similarly by the weights, regardless of the layers. While such assumption maybe challenged by the existence of the skip connections, such technique still showed superior result to the approach of independent learning the weights at each layer.
+        \item The model is conditioned on the class label of the image. The input labels are represented as one-hot encoding.
+        \item Among the \texttt{gated\_resnet} function, we introduced two new weights layer \texttt{weight\_a} and \texttt{weight\_b}, each of which is multiped with input label and is added to the resulting \texttt{a}, \texttt{b} parameters after the convolution operations. This simple and effective method allows the model to learn class-specific features at each layers. A similar but per-pixel weighted approach is disccused in \ref{alternative_solution}
      \end{itemize}
 
     \subsubsection{Classification Layer:}
     \begin{itemize}
-        \item We employ the loss function as the classification layer. The idea is that by iterating over an image with all possible labels, the label that results in the lowest loss is chosen as the predicted label by the model. This method offers a straightforward and effective means of classification without the need for additional layers or parameters.
+        \item We designed a classification layer utilizing a modified loss function. The idea is that by iterating over an image with all possible labels, the label that results in the lowest loss is chosen as the predicted label by the model. This method offers a straightforward and effective means of classification without the need for additional layers or parameters. This technique is conceptually similar to using \texttt{argmax(softmax(logits))}, with the benefit of directly computing according the the loss function the model is familiar with. For the 
     \end{itemize}
-% TODO: TEST pp, TEST base, classification layer, embedding, finetuning, 
 
 \section{Experiments}
 The model is trained on the CPEN450 dataset, 32x32 pixel images divided into four classes. With a batch size of 16 with 500 epochs, the additional conditional parameters are trained with xavier uniform initialization. The fid curve can be found on Figure \ref{fig:o-fid} and the BPD curve can be found on Figure \ref{fig:o-bpd}.
@@ -114,7 +120,7 @@ Sample images are shown in Figure \ref{fig:sample}.
 \end{verbatim}
 
 \subsection{Training and setup}
-The code consist of only packages listed under requirements.txt. The code is run on a single 2070 super max-Q mobile GPU. The training process took approximately 24 hours to complete. Cuda version is 12.4.131, the torch version is cuda121, python version is 3.10.13. 
+Please reference the appended README\_TECH.md file.
 
 \subsection{GPT-Use}
 Sections of the code modified by GPT is labeled in line with comment. One can find the chat history with GPT in the supplementary materials section
@@ -123,6 +129,7 @@ Sections of the code modified by GPT is labeled in line with comment. One can fi
 With the model trained, we achieved an accuracy of 44\% on the test set. The model is able to classify images into the correct class with reasonable accuracy.
 
 \subsection{Alternative solutions attempted}
+\label{alternative_solution}
 
 Several other solutions were attempted but did not show as promising results are discussed below. Unless explicitly stated, all structures are trained with hyperparameter [resnet = 1, filter = 40, logistical\_mix = 10] at 200 epochs without finetuning. Measured accuracy is taken among the highest of all checkpoints. For reference, the reduced parameter model demonstrated an accuracy of 65.1\% on the validation dataset at epoch 200 with 37.6 FID, and 71.0 \% at epoch 350 (optimal amongst 500 epoch). The FID score is 28.7 at epoch 350.
 
@@ -137,10 +144,27 @@ Several other solutions were attempted but did not show as promising results are
     \item Reflecting on top of the above approach, we removed the dependency of the model on specific labels, instead introducing a single wight matrix that is multiplied with the labels, normalized and added to the output. Indeed, we no longer observe the overfitting issue, and the model achieved a validation accuracy of 71.8\% at epoch 500. The FID score is sub 20 at times. The only reason this model is not chosen as the final model is due to the fact that the model is not able to generalize well to the test dataset at high parameter count. The best performing checkpoint for [resnet = 1, filter = 128, logistical\_mix = 100] model achieved a test accuracy of XXX. The comparison between this model and the proposed model is shown in Figure \ref{fig:f_pp_cmp}
 \end{itemize}
 
+\begin{table}
+    \caption{Model Comparison}
+    \label{model_cmp}
+    \centering
+    \begin{tabular}{lll}
+      \toprule
+      \multicolumn{2}{c}{Part}                   \\
+      \cmidrule(r){1-2}
+      Name     & Description     & Size ($\mu$m) \\
+      \midrule
+      Dendrite & Input terminal  & $\sim$100     \\
+      Axon     & Output terminal & $\sim$10      \\
+      Soma     & Cell body       & up to $10^6$  \\
+      \bottomrule
+    \end{tabular}
+\end{table}
+
 \begin{figure}
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/f-lc-samples.png}
-    \caption{ Sample images generated by the model with label as channel.}
+    \caption{ Sample images generated by the model with label as channels.}
     \label{fig:f-lc-samples}
 \end{figure}
 
@@ -174,88 +198,107 @@ In conclusion, the modifications from the author, the PixelCNN++G model was able
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-1.png}
-    \caption{GPT chat history}
 \end{figure}
 
-
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-2.png}
-    \caption{GPT chat history}
 \end{figure}
 
-
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-3.png}
-    \caption{GPT chat history}
+
 \end{figure}
 
-
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-4.png}
-    \caption{GPT chat history}
 \end{figure}
 
-
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-5.png}
-    \caption{GPT chat history}
 \end{figure}
 
-
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-6.png}
-    \caption{GPT chat history}
 \end{figure}
 
-
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-7.png}
-    \caption{GPT chat history}
 \end{figure}
 
-
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-8.png}
-    \caption{GPT chat history}
 \end{figure}
 
-
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-9.png}
-    \caption{GPT chat history}
 \end{figure}
 
-
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-10.png}
-    \caption{GPT chat history}
 \end{figure}
 
-
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-11.png}
-    \caption{GPT chat history}
 \end{figure}
-
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-12.png}
-    \caption{GPT chat history}
 \end{figure}
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{report_data/g-13.png}
+
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{report_data/g-14.png}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{report_data/g-15.png}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{report_data/g-16.png}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{report_data/g-17.png}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{report_data/g-18.png}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{report_data/g-19.png}
+\end{figure}
+
+
+
 \section*{References}
+% base
 [1] T. van den Salimans, A. Karpathy, X. Chen, and D. p. Kingma, PIXELCNN++: IMPROVING THE PIXELCNN WITH DISCRETIZED LOGISTIC MIXTURE LIKELIHOOD AND OTHER MODIFICATIONS, 2017. Accessed: 2024. [Online]. Available: https://arxiv.org/pdf/1606.05328.pdf
+
+% simple 
 [2] A. van den Oord et al., Conditional Image Generation with PixelCNN Decoders, 2016. Accessed: 2024. [Online]. Available: https://arxiv.org/pdf/1606.05328.pdf
 
 \end{document}

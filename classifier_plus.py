@@ -207,6 +207,7 @@ def classifier_save(model, data_loader, device):
 def get_label_multi_region_smart(model, model_input, xy_set, device, zoom=False):
     batch_size = model_input.size(0)
     all_predictions = torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
+    all_predictions_argmax = torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
 
     # Iterate over each region specified by the xy tuple
     for x, y in xy_set:
@@ -229,6 +230,7 @@ def get_label_multi_region_smart(model, model_input, xy_set, device, zoom=False)
             masked_input = torch.nn.functional.interpolate(masked_input, size=(32, 32), mode='linear')
             
         region_predictions = torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
+        region_predictions_argmax = torch.zeros(NUM_CLASSES, batch_size, dtype=torch.float32, device=device)
         for i in range(NUM_CLASSES):
             # Convert label to tensor representation
             class_label = label_to_onehot_tensor([my_bidict.inverse[i]]*batch_size)
@@ -244,23 +246,28 @@ def get_label_multi_region_smart(model, model_input, xy_set, device, zoom=False)
 
             # Calculate logistic loss for masked region
             region_predictions[i] = discretized_mix_logistic_loss(masked_input, masked_output, train=False)
-
+            region_predictions_argmax[i] = masked_output
         # Accumulate predictions across all specified regions by averaging logits
         all_predictions += region_predictions / len(xy_set)
+        all_predictions_argmax += region_predictions_argmax / len(xy_set)
 
     # Compute softmax probabilities to find classes and then find the minimum predicted class label
     _, pred = torch.min(all_predictions, dim=0)
     pred_2 = torch.argmin(torch.softmax(all_predictions, dim=0), dim=0)
-    if not torch.equal(pred, pred_2):
+    pred_3 = torch.argmax(torch.softmax(all_predictions_argmax, dim=0), dim=0)
+    if not torch.equal(pred, pred_2) or not torch.equal(pred, pred_3):
         print('Error in prediction')
         print(pred)
         print(pred_2)
+        print(pred_3)
 
-    return pred
+    return (pred, pred_2, pred_3)
     
 def classifier_smart(model, data_loader, device):
     model.eval()
     acc_tracker = ratio_tracker()  # Assuming 'ratio_tracker' is defined elsewhere to track accuracy
+    acc_tracker_2 = ratio_tracker()
+    acc_tracker_3 = ratio_tracker()
     for batch_idx, item in enumerate(tqdm(data_loader)):
         model_input, categories = item
         model_input = model_input.to(device)
@@ -268,11 +275,23 @@ def classifier_smart(model, data_loader, device):
         
         xy_set = [(23, 32), (28, 32), (32, 32), (32, 28), (32, 23)]
         xy_set = [(32, 32)]
-        answer = get_label_multi_region_smart(model, model_input, xy_set, device)
+        answer, answer_2, answer_3 = get_label_multi_region_smart(model, model_input, xy_set, device)
         correct_num = torch.sum(answer == original_label).item()
+        correct_num_2 = torch.sum(answer_2 == original_label).item()
+        correct_num_3 = torch.sum(answer_3 == original_label).item()
         acc_tracker.update(correct_num, model_input.shape[0])
-        record_wrong(item, answer, original_label)
-    return acc_tracker.get_ratio()
+        acc_tracker_2.update(correct_num_2, model_input.shape[0])
+        acc_tracker_3.update(correct_num_3, model_input.shape[0])
+        
+        ratio = (acc_tracker.get_ratio(), acc_tracker_2.get_ratio(), acc_tracker_3.get_ratio())
+        # record on best result's answer (highest ratio)
+        if ratio.index(max(ratio)) == 0:
+            record_wrong(item, answer, original_label)
+        elif ratio.index(max(ratio)) == 1:
+            record_wrong(item, answer_2, original_label)
+        else:
+            record_wrong(item, answer_3, original_label)
+    return ratio
         
 
 if __name__ == '__main__':
@@ -414,7 +433,7 @@ if __name__ == '__main__':
         model.eval()
         print('model parameters loaded')
         
-        acc = classifier_smart(model = model, data_loader = dataloader_t, device = device)
-        print(f"Accuracy: {acc}")
+        acc, acc_2, acc3 = classifier_smart(model = model, data_loader = dataloader_t, device = device)
+        print(f"Accuracy: {acc}% (min), {acc_2}% (argmin), {acc3}% (argmax)")
         
         
