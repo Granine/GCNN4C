@@ -77,7 +77,7 @@ def get_label_lg(model, model_input, device, logit_file):
         np.save(logit_file, updated_logits)
     else:
         # Save the logits for the first time.
-        np.save(logit_file, all_predictions.detach().cpu().numpy())
+        np.save(logit_file, all_predictions.detach().cpu().numpy().T)
 
     return pred
 
@@ -365,9 +365,7 @@ if __name__ == '__main__':
     elif run_mode == "test":
         base = 'models/'
         model_list = [
-        'conditional_pixelcnn.pth',
-        'pcnn_cpen455_load_model_134.pth',
-        'pcnn_cpen455_load_model_149.pth'
+        'conditional_pixelcnn.pth'
         ]
         dataloader_t = torch.utils.data.DataLoader(CPEN455Dataset_path(root_dir=args.data_dir, 
                                                             mode = "test", 
