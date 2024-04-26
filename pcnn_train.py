@@ -101,7 +101,7 @@ if __name__ == '__main__':
                         help='Random seed to use')
     parser.add_argument('-ft', '--finetune', type=str, default="",
                         help='A smarter method to finetune the model, any combination of string 0123 for classes to tune')
-    parser.add_argument('-nt', '--norm_technique', type=str, default="bn",
+    parser.add_argument('-nt', '--norm_technique', type=str, default="bn", # used in some architectures only
                         help='What technique to use for normalization, bn or wn')
     
     

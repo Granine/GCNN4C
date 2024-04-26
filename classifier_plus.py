@@ -303,6 +303,8 @@ if __name__ == '__main__':
                         default=16, help='Batch size for inference')
     parser.add_argument('-m', '--mode', type=str,
                         default='validation', help='Mode for the dataset')
+    parser.add_argument('-p', '--purpose', type=str,
+                    default='', help='run mode to start the system on')
     
     args = parser.parse_args()
     pprint(args.__dict__)
@@ -317,17 +319,20 @@ if __name__ == '__main__':
                                              shuffle=True, 
                                              **kwargs)
 
-    #Write your code here
-    #You should replace the random classifier with your trained model
-    #Begin of your code
    
     fix_seeds()
-    run_mode = "smart"
+    # ================config===============
+    run_mode = "smart" # default is "", if configured, it will overwrite the purpose argument
     parms = {"nr_resnet": 1, "nr_filters": 128, "input_channels": 3, "nr_logistic_mix": 100}
-    single_path = r"models/conditional_pixelcnn.pth"
+    single_path = r"models/conditional_pixelcnn.pth" # work for base, smart
     strict = False
+    # =====================================
 
-
+    if run_mode != 0:
+        run_mode = run_mode
+    else:
+        run_mode = args.purpose
+        
     if run_mode == "all":
         
         model_path = r'.\models'
@@ -422,11 +427,13 @@ if __name__ == '__main__':
         model = model.to(device)
         #Attention: the path of the model is fixed to 'models/conditional_pixelcnn.pth'
         #You should save your model to this path
-        model.load_state_dict(torch.load('models/conditional_pixelcnn.pth'))
+        model.load_state_dict(torch.load(single_path))
         model.eval()
         print('model parameters loaded')
         
         acc, acc_2, acc3 = classifier_smart(model = model, data_loader = dataloader, device = device)
         print(f"Accuracy: {acc}% (min), {acc_2}% (argmin), {acc3}% (argmax)")
+    else:
+        print('Invalid mode')
         
         

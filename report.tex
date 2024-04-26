@@ -54,10 +54,9 @@
 
 \maketitle
 \thispagestyle{fancy}
-
 \begin{abstract}
-    PixelCNN++G is a conditional generative model based on the PixelCNN++ architecture[2]. For this project, we aim to implement the PixelCNN++G model with an additional classification layer to transform it into an image classification model. The model will be trained on the CPEN450 dataset to classify images into one of four classes.
-  \end{abstract}
+    This work introduces PixelCNN++G, an image generation model derived from the PixelCNN++ architecture [1]. PixelCNN++G, a conditional generation model, can also be used for image classification. We demonstrate the capabilities of this modification by training the model on the CPEN450 dataset, categorizing images into four classes.
+\end{abstract}
 
 \section{Model}
 
@@ -65,115 +64,111 @@
 
     \subsubsection{Data Preprocessing:}
     \begin{itemize}
-        \item PixelCNN is orientation-sensitive, which means it has difficulty recognizing the orientation of objects. To address this, we randomly flip the images horizontally during training to make the model invariant to the direction of the image. This technique is also equivalent to introducing double the amount of training data, which can help improve the model's generalization ability.
-        \item Additionally, we rotate the images randomly form -10 to +10 degrees so that the model can learn object orientations with reduced impact from the image directionality.
-        \item We introduced various new data augmentation techniques during the fine-tuning process, in hope to generate more data unfamiliar to the model, which is often desired for th fine-tuning process. This includes colour jittering and random cropping. Based on measure, fine-process with this technique increased accuracy by 2.00\% on validation dataset, 1.54\% on test dataset.
+        \item PixelCNN++ is sensitive to image orientation, which can hinder its ability to accurately recognize object orientations. To mitigate this, we horizontally flip the images randomly during training, which not only helps the model become invariant to direction but also effectively doubles the training dataset, enhancing the model's generalization capabilities.
+        \item We also rotate the images randomly within a range of -10 to +10 degrees. This helps the model to better learn object orientations with minimal influence from image directionality.
+        \item Further, we employ new data augmentation techniques during the fine-tuning stage, such as color jittering and random cropping, to expose the model to more varied data, which is crucial in the fine-tuning process. 
     \end{itemize}
 
     \subsubsection{Conditional Model:}
     \begin{itemize}
-        \item The model is conditioned on the class label of the image. The input labels are represented as one-hot encoding.
-        \item Among the \texttt{gated\_resnet} function, we introduced two new weights layer \texttt{weight\_a} and \texttt{weight\_b}, each of which is multiped with input label and is added to the resulting \texttt{a}, \texttt{b} parameters after the convolution operations. This simple and effective method allows the model to learn class-specific features at each layers. A similar but per-pixel weighted approach is disccused in \ref{alternative_solution}
-     \end{itemize}
+        \item The model is conditioned on image class labels, which is represented as one-hot encoding.
+        \item Within the \texttt{gated\_resnet} function, we introduced two additional layers (\texttt{weight\_a} and \texttt{weight\_b}), each multiplicatively interacting with the input label before adding to the resultant parameters (\texttt{a}, \texttt{b}) post-convolution. This approach enables the model to learn class-specific features at each layer effectively. To illustrate this, a simplified diagram of PixelCNN++G is presented in Figure \ref{fig:o-dia}. It is important to note that this diagram omits detailed features such as shifting and masking; it focuses on demonstrating the influence of the weighting mechanism.
+    \end{itemize}
 
     \subsubsection{Classification Layer:}
     \begin{itemize}
-        \item We designed a classification layer utilizing a modified loss function. The idea is that by iterating over an image with all possible labels, the label that results in the lowest loss is chosen as the predicted label by the model. This technique is conceptually similar to using \texttt{min(softmax(logits))}, however, due to float precision, the latter method occasionally result in mismatch and is not used.
+        \item We implemented a classification layer using a modified per-image loss function. By evaluating each image across all potential labels and choosing the label that yields the lowest loss, the model predicts the image's label. This approach, conceptually similar to \texttt{argmin(softmax(logits))}, avoids the pitfalls of floating-point precision errors found in the softmax approach, which occasionally lead to incorrect predictions.
     \end{itemize}
 
-\section{Experiments}
-The model is trained on the CPEN450 dataset, 32x32 pixel images divided into four classes. With a batch size of 16 with 500 epochs, the additional conditional parameters are trained with xavier uniform initialization. The fid curve can be found on Figure \ref{fig:o-fid} and the BPD curve can be found on Figure \ref{fig:o-bpd}.
-Sample images are shown in Figure \ref{fig:sample}.
+    \subsubsection{Finetuning Pipeline:}
+    \begin{itemize}
+        \item A new fine-tuning pipeline has been developed to enhance the model's performance on specific classes or across all classes with a reduced learning rate. This pipeline can incorporate a validation set for additional data analysis; however, subsequent validation on this portion might skew results. This process was not used to produce the final PixelCNN++G checkpoint as the base model performed best, demonstrating efficacy in addressing class imbalance issues observed in other models. A detailed review of this process and the result comparison is available in the appendix under section \ref{train}.
+    \end{itemize}
 
 \begin{figure}
     \centering
-    \includegraphics[width=0.5\textwidth]{report_data/o-train.png}
+    \includegraphics[width=1.0\textwidth]{report_data/o-dia.jpg}
+    \caption{ Training curve for the main model.}
+    \label{fig:o-dia}
+    \end{figure}
+
+\section{Experiments}
+The model is trained on the CPEN450 dataset, 32x32 pixel images divided into four classes. The training curve is shown in Figure \ref{fig:o-train}. Sample images are shown in Figure \ref{fig:o-sample}.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1.0\textwidth]{report_data/o-train.png}
     \caption{ Training curve for the main model.}
     \label{fig:o-train}
   \end{figure}
 
   \begin{figure}
     \centering
+    \includegraphics[width=0.9\textwidth]{report_data/o-images.png}
+    \caption{ Sample images generated by the model, each row represents a class.}
+    \label{fig:o-sample}
+  \end{figure}
+
+\subsection{major hyperparameter}
+\begin{verbatim}
+--batch_size 32 `
+--nr_resnet 1 `
+--nr_filters 128 `
+--nr_logistic_mix 100 `
+--lr_decay 0.99995 `    # until batch 501, changed to 0.997 afterward 
+--lr 0.0002 `           # until batch 501, changed to 0.0001 afterward
+--max_epochs 801 `      # final batch used is 775, however, validation accuracy reached 86+ since batch 300
+--seed 4399
+\end{verbatim}
+
+\subsection{Training and setup}
+\label{train}
+Please reference the appended CPEN455HW-2023W2\textbackslash README\_TECH.md file.
+
+\subsection{Results}
+With the model trained, we achieved an accuracy of 0.89\% and f1 of 0.89\% on the test set with a fid score of 21.3, as shown in Figure \ref{fig:o-fid-fin}.
+
+\begin{figure}
+    \centering
     \includegraphics[width=0.5\textwidth]{report_data/o-fid-img.png}
     \caption{ FID score of generated image (100) }
     \label{fig:o-fid-fin}
   \end{figure}
 
-  \begin{figure}
-    \centering
-    \includegraphics[width=0.9\textwidth]{report_data/o-1.png}
-    \includegraphics[width=0.9\textwidth]{report_data/o-2.png}
-    \includegraphics[width=0.9\textwidth]{report_data/o-3.png}
-    \caption{ Sample images generated by the model. Counting from left column to right column, the first column is the class0, the second column is the class1, the third column is the class2, and the fourth column is the class3.}
-    \label{fig:sample}
-  \end{figure}
-
-\subsection{major hyperparameter}
-\begin{verbatim}
---batch_size 16 `
---nr_resnet 2 `
---nr_filters 160 `
---nr_logistic_mix 100 `
---lr_decay 0.99995 `
---max_epochs 500 `
---seed 4399
-\end{verbatim}
-
-\subsection{Training and setup}
-Please reference the appended README\_TECH.md file.
-
-\subsection{GPT-Use}
-Sections of the code modified by GPT is labeled in line with comment. One can find the chat history with GPT in the supplementary materials section
-
-\subsection{Results}
-With the model trained, we achieved an accuracy of 44\% on the test set. The model is able to classify images into the correct class with reasonable accuracy.
-
 \subsection{Alternative solutions attempted}
 \label{alternative_solution}
 
-Several other solutions were attempted but did not show as promising results are discussed below. Unless explicitly stated, all structures are trained with hyperparameter [resnet = 1, filter = 40, logistical\_mix = 10] at 200 epochs without finetuning. Measured accuracy is taken among the highest of all checkpoints. For reference, the reduced parameter model demonstrated an accuracy of 65.1\% on the validation dataset at epoch 200 with 37.6 FID, and 71.0 \% at epoch 350 (optimal amongst 500 epoch). The FID score is 28.7 at epoch 350.
+
+We explored several interesting alternative solutions, detailed below, which did not yield as promising results as our chosen approach. Unless stated otherwise, all models were trained with the hyperparameters [resnet = 1, filter = 40, logistical\_mix = 10] for 200 epochs without fine-tuning. Measured accuracies were taken from the highest performing checkpoints. For context, our reduced parameter model achieved an accuracy of 74.1\% on the validation dataset at epoch 200 with a Fréchet Inception Distance (FID) of 37.6, increasing to 81.2\% accuracy and a FID of 28.7 at epoch 350 (the optimal point within a 500 epoch span).
 
 \begin{itemize}
-    \item Specialized preprocessing techniques, such as image segmentation and swapping, noise and data masking did not prove to aid the training nor finetuning of the model. Such observation may largely be due to the limited training data and pixelCNN's nature of per pixel generation. Validation accuracy reduced from 65.1\% to 63.3\%. 
-    \item To embed the label information in the model, attempts were made to embed label information directly into the input or output of the model, which failed to show significant improvement in classification accuracy. The same attempt was made in combination with the proposed weight application technique in resnet blocks, which also failed to show improvement in classification accuracy. Validation accuracy of 53.2\% is shown with 500 epochs.
-    \item Attempts to utilizing a Polyak Averaged Model to be embedded and concatenated with the input at the ResNet block level have also been studied. While this approach showed promising results in terms of the Fréchet Inception Distance (FID), it did not significantly improve classification accuracy. Validation accuracy of 67.2\% is shown with 450 epochs.
-    \item A major model restructure to incorporate a label channel also showed limited success. This approach failed to improve classification accuracy beyond random guessing. Inspecting the generated images, it is observed that the model is unable to generate images that resemble the input images. This may suggest a structural or programming failure which failed to properly handle the label layer. Example images generated by this model are shown in Figure \ref{fig:F-lc-sample}. The best validation accuracy is 25.2\% among 400 epochs, with 28.7 FID for that checkpoint.
-    \item Additional attempt to modify the PCNN++G structure by updating the resnet structure by removing final addition with input matrix, instead purely depending on convolution layers to transform the input have been made. Although this method produced reasonable FID score of 25.5 at epoch 200 with, it marley achieved a classification accuracy of 49.2\%. 
-    \item In this solution, we modified PixelCNNLayer\_up\/down and Resnet to introduces a new set of weights at every layer of both the upward and downward paths (6 layers in total, 8 at each resnet, each coming into effect based on the label). These weights are multiplied by the class label embedding before being applied in the convolution layers. This operation is by pixel, meaning that theoretically, as unique weight can be learned about each pixel at each layer. It will establish a stronger correlation between specific components of the image and its class at every layer to address the difficulty of model capturing label information. This strategy, in combination with the proposed tanh normalization technique introduced in [1] also showed promising results of 68.4\% validation accuracy at epoch 225. However, this approach showed signs of ovefitting, dispite the fact that there is increasing in parameter count. The BPD curve is shown in Figure \ref{fid:F-BPD}. 
-    \item Reflecting on top of the above approach, we removed the dependency of the model on specific labels, instead introducing a single wight matrix that is multiplied with the labels, normalized and added to the output. Indeed, we no longer observe the overfitting issue, and the model achieved a validation accuracy of 71.8\% at epoch 500. The FID score is sub 20 at times. The only reason this model is not chosen as the final model is due to the fact that the model is not able to generalize well to the test dataset at high parameter count. The best performing checkpoint for [resnet = 1, filter = 128, logistical\_mix = 100] model achieved a test accuracy of XXX. The comparison between this model and the proposed model is shown in Figure \ref{fig:f_pp_cmp}
-    \item By observation of the failed images as seen in analysis like 
+    \item Specialized preprocessing techniques, such as image segmentation, swapping, noise, and data masking, did not enhance the training or fine-tuning performance of the model. These methods may not have been effective due to the limited training data and PixelCNN's pixel-wise generation characteristic. Validation accuracy decreased from 74.1\% to 73.3%.
+    \item Employing a Polyak Averaged Model, integrated at the ResNet block level, showed potential in improving FID scores but failed to significantly boost classification accuracy. Validation accuracy peaked at 77.2\% after 450 epochs.
+    \item A complete structural overhaul to include a label channel was unsuccessful in elevating classification accuracy beyond mere random chance. Generated images from this model failed to resemble input images, indicating possible structural or implementation errors. Optimal validation accuracy was a mere 25.2\% over 400 epochs, with 28.7 FID at the same checkpoint.
+    \item Modifying the PCNN++G by eliminating the final addition with the input matrix in favor of purely relying on convolution layers resulted in a reasonable FID of 25.5 at epoch 200, but a disappointing classification accuracy of only 69.2\%. This is the approach utilized by vann den Oord et al. [2] in third approach to conditional PIXELCNN model. However, the highlighted approach utilized additional conditional AVE decoder which was not implemented by this solution.
+    \item Revising PixelCNNLayer\_up/down and ResNet to introduce a new set of weights at each layer, which are multiplied by the class label embedding prior to convolution, demonstrated a stronger correlation between image components and their classification at every layer. This approach reached an accuracy of 84.9\% at epoch 300 but exhibited signs of increasing BPD due to the handling of gradients. The BPD curve for this model variation is shown in Figure \ref{fig:F-BPD}.
+    \item Eliminating specific label dependencies in favor of a single weight matrix interacting with the labels resulted in no overfitting, achieving a validation accuracy of 71.8\% at epoch 500, with occasional sub-20 FID scores. However, this model struggled to generalize effectively to the test dataset at high parameter settings, achieving a test accuracy of 86.1\% by epoch 475 (increasing to 87.6\% post-fine-tuning). A comparison with our proposed model is illustrated in Figure \ref{fig:F-pp_cmp}.
+    \item For further details on classification, fine-tuning, data analysis, and training processes, please refer to the technical documentation detailed in \ref{train}.
 \end{itemize}
 
 \begin{table}
-    \caption{Model Comparison}
+    \caption{Model Performance Comparison}
     \label{model_cmp}
     \centering
-    \begin{tabular}{lll}
+    \begin{tabular}{llll}
       \toprule
-      \multicolumn{2}{c}{Part}                   \\
-      \cmidrule(r){1-2}
-      Name     & Description     & Size ($\mu$m) \\
+      Model Variant & Epoch & Validation Accuracy (\%) & FID \\
       \midrule
-      Dendrite & Input terminal  & $\sim$100     \\
-      Axon     & Output terminal & $\sim$10      \\
-      Soma     & Cell body       & up to $10^6$  \\
+      PIXELCNN++G   & 350 & 74.1 & 28.7 \\
+      PIXELCNN++G   & 350 & 81.2 & 28.7 \\
+      Polyak Averaged Model     & 200 & 77.2 & - \\
+      Label Channel Model       & 400 & 25.2 & - \\
+      Pure Convolution          & 200 & 69.2 & 25.5 \\
+      Modified PixelCNNLayer    & 300 & 84.9 & - \\
+      Single Weight Matrix      & 500 & 71.8 & <20 \\
       \bottomrule
     \end{tabular}
 \end{table}
-
-\begin{figure}
-    \centering
-    \includegraphics[width=0.5\textwidth]{report_data/f-lc-samples.png}
-    \caption{ Sample images generated by the model with label as channels.}
-    \label{fig:f-lc-samples}
-\end{figure}
-
-\begin{figure}
-    \centering
-    \includegraphics[width=0.5\textwidth]{report_data/f_1_fid.png}
-    \caption{ FID curve for the model with different down-sampling weights for each class.}
-    \label{fig:F-FID}
-  \end{figure}
 
 \begin{figure}
     \centering
@@ -181,19 +176,23 @@ Several other solutions were attempted but did not show as promising results are
     \caption{BPD curve for the model with new set of weights at every layer.}
     \label{fig:F-BPD}
   \end{figure}
+
   \begin{figure}
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/f_pp_cmp.png}
     \caption{Comparison between the final model and the model with different down-sampling weights for each class.}
-    \label{fig:F-BPD}
+    \label{fig:F-pp_cmp}
   \end{figure}
 
 \section{Conclusion}
 
-In conclusion, the modifications from the author, the PixelCNN++G model was able to achieve a classification accuracy of 36.8\% on the CPEN450 dataset, with a FID score of 32.73. The model and corresponding code is included as appendix to this report.
+In conclusion, with the modifications from the author, the PixelCNN++G model was able to achieve a classification accuracy of 88.9\% on the tes dataset, with a FID score of 21.3. The model and corresponding code is included as appendix to this report.
 
 
 \section{Supplementary Material}
+
+\subsection{GPT-Use}
+Sections of the code modified by GPT is labeled in line with comment. One can find the chat history with GPT in the supplementary materials section
 
 \begin{figure}[H]
     \centering
@@ -265,6 +264,11 @@ In conclusion, the modifications from the author, the PixelCNN++G model was able
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{report_data/g-14.png}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{report_data/g-14_.png}
 \end{figure}
 
 \begin{figure}[H]
