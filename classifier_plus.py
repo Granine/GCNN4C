@@ -322,7 +322,7 @@ if __name__ == '__main__':
    
     fix_seeds()
     # ================config===============
-    run_mode = "smart" # default is "", if configured, it will overwrite the purpose argument
+    run_mode = "" # default is "", if configured, it will overwrite the purpose argument
     parms = {"nr_resnet": 1, "nr_filters": 128, "input_channels": 3, "nr_logistic_mix": 100}
     single_path = r"models/conditional_pixelcnn.pth" # work for base, smart
     strict = False
