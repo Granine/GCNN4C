@@ -1,6 +1,6 @@
 # Conditional CNN for Image Classification
 
-PixelCNNG is an attempt to convert an unlabeled generative model [PixelCNN:https://arxiv.org/abs/1606.05328] into a predictive model by adding a label channel and forcing the final generation probability to map to classes.
+GCNN4C (Generative CNN for Classification) is an attempt to convert an unlabeled generative model [PixelCNN:https://arxiv.org/abs/1606.05328] into a predictive model by adding a label channel and forcing the final generation probability to map to classes.
 
 Topics Explored:
 1. Single-class generative model -> Class-based generative model
